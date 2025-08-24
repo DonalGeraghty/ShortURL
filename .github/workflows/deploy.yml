@@ -1,0 +1,117 @@
+name: Deploy to Google Cloud Run
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch: # Allow manual trigger
+
+env:
+  PROJECT_ID: donal-geraghty-home
+  SERVICE_NAME: url-shortener-api
+  REGION: us-central1
+  IMAGE: gcr.io/donal-geraghty-home/url-shortener-api
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+      - name: Run tests
+        run: |
+          python -c "from url_shortener import shorten_url, get_long_url; print('✅ All imports successful')"
+          python -c "from app import app; print('✅ Flask app imports successful')"
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        
+      - name: Configure Docker
+        run: gcloud auth configure-docker
+        
+      - name: Set project
+        run: gcloud config set project ${{ env.PROJECT_ID }}
+        
+      - name: Enable APIs
+        run: |
+          gcloud services enable run.googleapis.com
+          gcloud services enable firestore.googleapis.com
+          gcloud services enable cloudbuild.googleapis.com
+          
+      - name: Create service account if not exists
+        run: |
+          if ! gcloud iam service-accounts describe url-shortener@${{ env.PROJECT_ID }}.iam.gserviceaccount.com &> /dev/null; then
+            gcloud iam service-accounts create url-shortener \
+              --display-name="URL Shortener API Service Account"
+          fi
+          
+      - name: Grant Firestore permissions
+        run: |
+          gcloud projects add-iam-policy-binding ${{ env.PROJECT_ID }} \
+            --member="serviceAccount:url-shortener@${{ env.PROJECT_ID }}.iam.gserviceaccount.com" \
+            --role="roles/datastore.user"
+          gcloud projects add-iam-policy-binding ${{ env.PROJECT_ID }} \
+            --member="serviceAccount:url-shortener@${{ env.PROJECT_ID }}.iam.gserviceaccount.com" \
+            --role="roles/datastore.viewer"
+            
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --source . \
+            --region ${{ env.REGION }} \
+            --service-account url-shortener@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
+            --allow-unauthenticated \
+            --port 8080 \
+            --memory 512Mi \
+            --cpu 1 \
+            --max-instances 10 \
+            --timeout 300 \
+            --set-env-vars FLASK_ENV=production
+            
+      - name: Get service URL
+        id: service-url
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} --region ${{ env.REGION }} --format="value(status.url)")
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          
+      - name: Test deployment
+        run: |
+          echo "Testing deployed service at ${{ steps.service-url.outputs.url }}"
+          curl -f ${{ steps.service-url.outputs.url }}/health || exit 1
+          
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 **Deployment successful!**\n\nYour URL shortener API is now live at:\n${{ steps.service-url.outputs.url }}\n\n**API Endpoints:**\n- POST ${{ steps.service-url.outputs.url }}/api/data - Create short URL\n- GET ${{ steps.service-url.outputs.url }}/api/url/{id} - Get long URL\n- GET ${{ steps.service-url.outputs.url }}/health - Health check\n- GET ${{ steps.service-url.outputs.url }}/ - API info`
+            })
