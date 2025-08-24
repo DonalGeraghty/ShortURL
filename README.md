@@ -63,7 +63,7 @@ curl -X POST -H "Content-Type: application/json" \
 
 **Response:**
 ```
-https://short.ly/9b1254
+9b1254
 ```
 
 #### Retrieve Long URL

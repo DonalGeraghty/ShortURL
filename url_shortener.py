@@ -148,7 +148,7 @@ def shorten_url(long_url):
                         "duration_ms": round(duration, 2),
                         "status": "success"
                     })
-                    return f"https://short.ly/{existing_doc.id}"
+                    return f"{existing_doc.id}"
                 
                 # Store new URL mapping
                 doc_ref = collection_ref.document(short_code)
@@ -202,7 +202,7 @@ def shorten_url(long_url):
             "status": "success"
         })
         
-        return f"https://short.ly/{short_code}"
+        return f"{short_code}"
         
     except Exception as e:
         duration = (time.time() - start_time) * 1000
