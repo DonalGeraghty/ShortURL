@@ -21,6 +21,10 @@ COPY . .
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash app \
     && chown -R app:app /app
+
+# Create logs directory
+RUN mkdir -p /app/logs && chown -R app:app /app/logs
+
 USER app
 
 # Expose port
