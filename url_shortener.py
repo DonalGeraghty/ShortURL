@@ -61,7 +61,7 @@ def shorten_url(long_url):
             
             if existing_doc:
                 # Return existing short code if URL was already shortened
-                return f"https://short.ly/{existing_doc.id}"
+                return f"{existing_doc.id}"
             
             # Store new URL mapping
             doc_ref = collection_ref.document(short_code)
@@ -82,7 +82,7 @@ def shorten_url(long_url):
             globals()['url_database'] = {}
         url_database[short_code] = long_url
     
-    return f"https://short.ly/{short_code}"
+    return f"{short_code}"
 
 def get_long_url(short_code):
     """Retrieve the long URL from Firestore or in-memory storage"""
