@@ -11,7 +11,6 @@ env:
   PROJECT_ID: donal-geraghty-home
   SERVICE_NAME: url-shortener-api
   REGION: us-central1
-  IMAGE: gcr.io/donal-geraghty-home/url-shortener-api
 
 jobs:
   test:
@@ -47,6 +46,7 @@ jobs:
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
+          project_id: ${{ env.PROJECT_ID }}
           
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
