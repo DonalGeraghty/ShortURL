@@ -1,177 +1,246 @@
-# Python REST API
+# 🔗 URL Shortener API
 
-A simple Flask-based REST API that handles POST requests with JSON data.
+A modern, scalable URL shortening service built with Flask and Google Cloud Firestore. Automatically deploy to Google Cloud Run with GitHub Actions.
 
-## Features
+## ✨ Features
 
-- **Single POST endpoint** at `/api/data` for submitting data
-- **Health check endpoint** at `/health` for monitoring
-- **Root endpoint** at `/` for API information
-- **CORS enabled** for cross-origin requests
-- **JSON validation** and error handling
-- **Timestamp tracking** for all requests
+- **🔗 URL Shortening**: Convert long URLs to short, shareable links
+- **🌐 RESTful API**: Clean HTTP endpoints for easy integration
+- **☁️ Cloud Native**: Built for Google Cloud with automatic scaling
+- **🔒 Secure**: Google Cloud authentication with service accounts
+- **📊 Persistent Storage**: Firestore database for reliable data storage
+- **🚀 Auto-Deploy**: GitHub Actions workflow for continuous deployment
+- **🧪 Health Monitoring**: Built-in health checks and monitoring
 
-## Setup
+## 🚀 Quick Start
 
-### Prerequisites
+### Local Development
 
-- Python 3.7 or higher
-- pip (Python package installer)
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/shortUrl.git
+   cd shortUrl
+   ```
 
-### Installation
-
-1. **Clone or download the project files**
-
-2. **Install dependencies:**
+2. **Install dependencies**
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Run the application:**
+3. **Run the application**
    ```bash
    python app.py
    ```
 
-The API will start on `http://localhost:5000`
+4. **Test the API**
+   ```bash
+   # Create a short URL
+   curl -X POST -H "Content-Type: application/json" \
+     -d '{"text": "https://www.example.com/very/long/url"}' \
+     http://localhost:5000/api/data
+   
+   # Check health
+   curl http://localhost:5000/health
+   ```
 
-## API Endpoints
+## 🌐 API Endpoints
 
-### POST /api/data
-Main endpoint for submitting data via POST request.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/data` | Create a short URL from a long URL |
+| `GET` | `/api/url/{short_code}` | Retrieve the original long URL |
+| `GET` | `/health` | Health check endpoint |
+| `GET` | `/` | API information and documentation |
 
-**Request:**
-- Method: `POST`
-- Content-Type: `application/json`
-- Body: JSON data
+### Example Usage
 
-**Example Request:**
+#### Create Short URL
 ```bash
-curl -X POST http://localhost:5000/api/data \
-  -H "Content-Type: application/json" \
-  -d '{"name": "John Doe", "email": "john@example.com"}'
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"text": "https://www.github.com/python/cpython"}' \
+  http://localhost:5000/api/data
+```
+
+**Response:**
+```
+https://short.ly/9b1254
+```
+
+#### Retrieve Long URL
+```bash
+curl http://localhost:5000/api/url/9b1254
 ```
 
 **Response:**
 ```json
 {
-  "message": "Data received successfully",
-  "timestamp": "2024-01-01T12:00:00Z",
-  "received_data": {
-    "name": "John Doe",
-    "email": "john@example.com"
-  },
+  "short_code": "9b1254",
+  "long_url": "https://www.github.com/python/cpython",
   "status": "success"
 }
 ```
 
-### GET /health
-Health check endpoint to verify API status.
+## 🏗️ Architecture
 
-**Response:**
-```json
-{
-  "status": "healthy",
-  "timestamp": "2024-01-01T12:00:00Z"
-}
-```
+- **Frontend**: Flask web framework
+- **Database**: Google Cloud Firestore (NoSQL)
+- **Deployment**: Google Cloud Run (serverless)
+- **CI/CD**: GitHub Actions
+- **Authentication**: Google Cloud IAM service accounts
 
-### GET /
-Root endpoint providing API information.
+## ☁️ Deployment
 
-**Response:**
-```json
-{
-  "message": "Python REST API",
-  "endpoints": {
-    "POST /api/data": "Submit data via POST request",
-    "GET /health": "Health check endpoint",
-    "GET /": "This information endpoint"
-  },
-  "timestamp": "2024-01-01T12:00:00Z"
-}
-```
+### Prerequisites
+- Google Cloud project with billing enabled
+- Firestore database enabled
+- GitHub repository
 
-## Testing
+### Automatic Deployment (Recommended)
 
-### Using the Test Script
+1. **Set up Google Cloud service account** with proper permissions
+2. **Add `GCP_SA_KEY` secret** to your GitHub repository
+3. **Push to main branch** - deployment happens automatically!
 
-1. **Install requests library:**
-   ```bash
-   pip install requests
-   ```
-
-2. **Run the test script:**
-   ```bash
-   python test_api.py
-   ```
-
-### Using curl
+### Manual Deployment
 
 ```bash
-# Test health endpoint
-curl http://localhost:5000/health
-
-# Test POST endpoint
-curl -X POST http://localhost:5000/api/data \
-  -H "Content-Type: application/json" \
-  -d '{"test": "data"}'
+# Deploy to Cloud Run
+gcloud run deploy url-shortener-api \
+  --source . \
+  --region us-central1 \
+  --allow-unauthenticated
 ```
 
-### Using Postman or similar tools
+## 🔐 Configuration
 
-- **URL:** `http://localhost:5000/api/data`
-- **Method:** `POST`
-- **Headers:** `Content-Type: application/json`
-- **Body:** Raw JSON with your data
+### Environment Variables
 
-## Environment Variables
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Server port | `5000` |
+| `FLASK_ENV` | Flask environment | `production` |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Service account key path | `None` |
 
-- `PORT`: Server port (default: 5000)
-- `FLASK_ENV`: Set to `development` for debug mode
+### Google Cloud Setup
 
-## Error Handling
+1. **Enable APIs**:
+   - Cloud Run API
+   - Firestore API
+   - Cloud Build API
 
-The API includes comprehensive error handling:
+2. **Service Account Roles**:
+   - Firestore User (`roles/datastore.user`)
+   - Cloud Run Admin (`roles/run.admin`)
 
-- **400 Bad Request:** Invalid JSON or missing data
-- **500 Internal Server Error:** Server-side errors
-
-All errors return JSON responses with error details.
-
-## Customization
-
-You can customize the POST endpoint in `app.py` by modifying the `handle_post()` function to:
-
-- Add data validation rules
-- Implement business logic
-- Connect to databases
-- Add authentication
-- Process specific data types
-
-## Project Structure
+## 📁 Project Structure
 
 ```
 shortUrl/
-├── app.py              # Main Flask application
-├── requirements.txt    # Python dependencies
-├── test_api.py        # Test script
-└── README.md          # This file
+├── .github/
+│   └── workflows/
+│       └── deploy.yml          # GitHub Actions deployment
+├── app.py                      # Flask web server
+├── url_shortener.py           # Core URL shortening logic
+├── requirements.txt            # Python dependencies
+├── Dockerfile                  # Container configuration
+├── .dockerignore              # Docker ignore file
+└── README.md                  # This file
 ```
 
-## Troubleshooting
+## 🧪 Testing
+
+### Run Tests
+```bash
+# Test imports
+python -c "from url_shortener import shorten_url, get_long_url; print('✅ All imports successful')"
+
+# Test Flask app
+python -c "from app import app; print('✅ Flask app imports successful')"
+```
+
+### API Testing
+```bash
+# Health check
+curl http://localhost:5000/health
+
+# Create short URL
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"text": "https://www.google.com"}' \
+  http://localhost:5000/api/data
+
+# Get long URL
+curl http://localhost:5000/api/url/SHORT_CODE
+```
+
+## 🔍 Monitoring
+
+### Health Checks
+- **Endpoint**: `/health`
+- **Response**: JSON with status and timestamp
+- **Use Case**: Load balancer health checks, monitoring
+
+### Logs
+```bash
+# View Cloud Run logs
+gcloud logs read --service=url-shortener-api --limit=50
+
+# View service details
+gcloud run services describe url-shortener-api --region us-central1
+```
+
+## 💰 Cost Optimization
+
+- **Cloud Run**: Pay per request (~$0.40 per million)
+- **Firestore**: Pay per operation (~$0.18 per 100K operations)
+- **Estimated**: $5-20/month for moderate usage
+
+## 🚨 Troubleshooting
 
 ### Common Issues
 
-1. **Port already in use:**
-   - Change the port in `app.py` or set `PORT` environment variable
-   - Kill existing processes using the port
+1. **"Permission denied"**
+   - Check service account has proper IAM roles
+   - Verify Firestore is enabled
 
-2. **Import errors:**
-   - Ensure all dependencies are installed: `pip install -r requirements.txt`
+2. **"Service not found"**
+   - Ensure service name and region are correct
+   - Check deployment logs
 
-3. **CORS issues:**
-   - The API includes CORS support, but you can modify CORS settings in `app.py`
+3. **"Authentication failed"**
+   - Verify `GCP_SA_KEY` secret is set correctly
+   - Check service account permissions
 
-## License
+### Debug Commands
 
-This project is open source and available under the MIT License.
+```bash
+# Check service status
+gcloud run services list
+
+# View logs
+gcloud logs read --service=url-shortener-api --limit=100
+
+# Test locally
+python app.py
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 📞 Support
+
+- **Issues**: [GitHub Issues](https://github.com/yourusername/shortUrl/issues)
+- **Documentation**: [Google Cloud Docs](https://cloud.google.com/run/docs)
+- **Firestore**: [Firestore Docs](https://firebase.google.com/docs/firestore)
+
+---
+
+⭐ **Star this repository if you find it helpful!**
