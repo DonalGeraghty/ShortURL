@@ -1,0 +1,12 @@
+# Google Cloud Authentication (Local Development Only)
+# For production deployment on Google Cloud, this is not needed!
+
+# Option 1: Service Account Key (for local development)
+GOOGLE_APPLICATION_CREDENTIALS=path/to/your/google-cloud-service-account.json
+
+# Option 2: Use Google Cloud CLI instead (recommended)
+# Run: gcloud auth application-default login
+# This automatically sets up credentials for local development
+
+# Note: When deployed on Google Cloud, the application automatically
+# uses the service account credentials - no environment variables needed!
