@@ -5,6 +5,7 @@ Supports different environments (development, production, Google Cloud Run)
 
 import os
 import logging
+import logging.config
 from datetime import datetime
 
 # Environment-based logging configuration
@@ -108,28 +109,27 @@ def get_logging_config(environment=None):
     
     return base_config
 
-def setup_logging():
+def setup_logging(environment=None):
     """Configure structured logging for Google Cloud Run"""
-    # Create logger
+    if not environment:
+        environment = os.environ.get('FLASK_ENV', 'production')
+    
+    # Get configuration
+    config = get_logging_config(environment)
+    
+    # Apply configuration
+    logging.config.dictConfig(config)
+    
+    # Get logger
     logger = logging.getLogger('url_shortener')
-    logger.setLevel(logging.INFO)
     
-    # Remove existing handlers to avoid duplicates
-    for handler in logger.handlers[:]:
-        logger.removeHandler(handler)
-    
-    # Create console handler with structured format
-    handler = logging.StreamHandler()
-    handler.setLevel(logging.INFO)
-    
-    # Create formatter for structured logging
-    formatter = logging.Formatter(
-        '{"timestamp": "%(asctime)s", "level": "%(levelname)s", "logger": "%(name)s", "message": "%(message)s", "module": "%(module)s", "function": "%(funcName)s", "line": %(lineno)d}'
-    )
-    handler.setFormatter(formatter)
-    
-    # Add handler to logger
-    logger.addHandler(handler)
+    # Log configuration applied
+    logger.info("Logging configuration applied", extra={
+        "operation": "logging_setup",
+        "environment": environment,
+        "log_level": logger.level,
+        "timestamp": datetime.utcnow().isoformat()
+    })
     
     return logger
 

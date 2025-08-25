@@ -1,7 +1,7 @@
 import os
 from firebase_admin import credentials, firestore, initialize_app
 from dotenv import load_dotenv
-from logging_config import logger
+from .logging_service import logger
 
 # Load environment variables
 load_dotenv()

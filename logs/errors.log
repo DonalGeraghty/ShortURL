@@ -1,0 +1,8 @@
+{"timestamp": "2025-08-25 11:03:31", "level": "ERROR", "logger": "url_shortener", "message": "Firestore initialization failed", "module": "firebase_service", "function": "initialize_firebase", "line": 71}
+{"timestamp": "2025-08-25 11:04:13", "level": "ERROR", "logger": "url_shortener", "message": "Firestore initialization failed", "module": "firebase_service", "function": "initialize_firebase", "line": 71}
+{"timestamp": "2025-08-25 11:07:06", "level": "ERROR", "logger": "url_shortener", "message": "Firestore initialization failed", "module": "firebase_service", "function": "initialize_firebase", "line": 71}
+{"timestamp": "2025-08-25 11:07:49", "level": "ERROR", "logger": "url_shortener", "message": "Firestore initialization failed", "module": "firebase_service", "function": "initialize_firebase", "line": 71}
+{"timestamp": "2025-08-25 11:09:16", "level": "ERROR", "logger": "url_shortener", "message": "Firestore initialization failed", "module": "firebase_service", "function": "initialize_firebase", "line": 71}
+{"timestamp": "2025-08-25 11:09:51", "level": "ERROR", "logger": "url_shortener", "message": "Firestore initialization failed", "module": "firebase_service", "function": "initialize_firebase", "line": 71}
+{"timestamp": "2025-08-25 11:10:21", "level": "ERROR", "logger": "url_shortener", "message": "Firestore initialization failed", "module": "firebase_service", "function": "initialize_firebase", "line": 71}
+{"timestamp": "2025-08-25 11:12:16", "level": "ERROR", "logger": "url_shortener", "message": "Firestore initialization failed", "module": "firebase_service", "function": "initialize_firebase", "line": 71}

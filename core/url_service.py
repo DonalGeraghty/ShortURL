@@ -1,8 +1,8 @@
 import hashlib
 import time
 from datetime import datetime
-from logging_config import logger
-from firebase_service import (
+from services.logging_service import logger
+from services.firebase_service import (
     initialize_firebase,
     store_url_mapping,
     check_url_exists,

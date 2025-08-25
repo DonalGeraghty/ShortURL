@@ -1,9 +1,10 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+import os
 import time
 from datetime import datetime
-from url_shortener import shorten_url, get_long_url
-from logging_config import get_flask_app_logger
+from core.url_service import shorten_url, get_long_url
+from services.logging_service import get_flask_app_logger
 
 # Initialize logger
 logger = get_flask_app_logger()
