@@ -13,8 +13,10 @@ env:
   REGION: us-central1
 
 jobs:
-  test:
+  deploy:
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    
     steps:
       - uses: actions/checkout@v4
       
@@ -28,18 +30,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           
-      - name: Run tests
+      - name: Validate imports
         run: |
-          python -c "from url_shortener import shorten_url, get_long_url; print('✅ All imports successful')"
+          python -c "from core.url_service import shorten_url, get_long_url; print('✅ Core URL service imports successful')"
+          python -c "from services.firebase_service import initialize_firebase; print('✅ Firebase service imports successful')"
+          python -c "from services.logging_service import logger; print('✅ Logging service imports successful')"
           python -c "from app import app; print('✅ Flask app imports successful')"
-
-  deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-    
-    steps:
-      - uses: actions/checkout@v4
       
       - name: Google Auth
         id: auth
