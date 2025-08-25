@@ -1,39 +1,12 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import os
-import logging
 import time
 from datetime import datetime
 from url_shortener import shorten_url, get_long_url
-
-# Configure logging for Google Cloud Run
-def setup_flask_logging():
-    """Configure structured logging for Flask app"""
-    # Create logger
-    logger = logging.getLogger('flask_app')
-    logger.setLevel(logging.INFO)
-    
-    # Remove existing handlers to avoid duplicates
-    for handler in logger.handlers[:]:
-        logger.removeHandler(handler)
-    
-    # Create console handler with structured format
-    handler = logging.StreamHandler()
-    handler.setLevel(logging.INFO)
-    
-    # Create formatter for structured logging
-    formatter = logging.Formatter(
-        '{"timestamp": "%(asctime)s", "level": "%(levelname)s", "logger": "%(name)s", "message": "%(message)s", "module": "%(module)s", "function": "%(funcName)s", "line": %(lineno)d}'
-    )
-    handler.setFormatter(formatter)
-    
-    # Add handler to logger
-    logger.addHandler(handler)
-    
-    return logger
+from logging_config import get_flask_app_logger
 
 # Initialize logger
-logger = setup_flask_logging()
+logger = get_flask_app_logger()
 
 app = Flask(__name__)
 CORS(app)

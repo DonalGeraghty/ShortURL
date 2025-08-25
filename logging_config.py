@@ -108,39 +108,33 @@ def get_logging_config(environment=None):
     
     return base_config
 
-def setup_logging(environment=None):
-    """
-    Set up logging configuration
-    
-    Args:
-        environment (str): Environment name
-    
-    Returns:
-        logging.Logger: Configured logger
-    """
-    import logging.config
-    
-    # Create logs directory if it doesn't exist
-    os.makedirs('logs', exist_ok=True)
-    
-    # Get configuration
-    config = get_logging_config(environment)
-    
-    # Apply configuration
-    logging.config.dictConfig(config)
-    
-    # Get logger
+def setup_logging():
+    """Configure structured logging for Google Cloud Run"""
+    # Create logger
     logger = logging.getLogger('url_shortener')
+    logger.setLevel(logging.INFO)
     
-    # Log configuration applied
-    logger.info("Logging configuration applied", extra={
-        "operation": "logging_setup",
-        "environment": environment or os.environ.get('FLASK_ENV', 'production'),
-        "log_level": logger.level,
-        "timestamp": datetime.utcnow().isoformat()
-    })
+    # Remove existing handlers to avoid duplicates
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+    
+    # Create console handler with structured format
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.INFO)
+    
+    # Create formatter for structured logging
+    formatter = logging.Formatter(
+        '{"timestamp": "%(asctime)s", "level": "%(levelname)s", "logger": "%(name)s", "message": "%(message)s", "module": "%(module)s", "function": "%(funcName)s", "line": %(lineno)d}'
+    )
+    handler.setFormatter(formatter)
+    
+    # Add handler to logger
+    logger.addHandler(handler)
     
     return logger
+
+# Initialize logger
+logger = setup_logging()
 
 def get_logger(name, environment=None):
     """
