@@ -254,17 +254,117 @@ def firestore_debug():
 
 @app.route('/api/firestore-test', methods=['GET'])
 def firestore_test():
-    # Initialize Firestore client (ADC will handle credentials in Cloud Run)
-    db = firestore.Client()
-
+    """
+    Test endpoint for Firestore functionality with comprehensive logging
+    """
+    start_time = time.time()
+    
+    logger.info("Firestore test request received", extra={
+        "operation": "firestore_test",
+        "endpoint": "/api/firestore-test",
+        "method": "GET",
+        "timestamp": datetime.now().isoformat()
+    })
+    
     try:
-        data = request.get_json()
-        doc_ref = db.collection("urls").add(data)
-        return jsonify({"id": doc_ref[1].id}), 200
+        # Log attempt to initialize Firestore client
+        logger.info("Initializing Firestore client", extra={
+            "operation": "firestore_test",
+            "step": "client_initialization",
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        # Initialize Firestore client (ADC will handle credentials in Cloud Run)
+        db = firestore.Client()
+        
+        logger.info("Firestore client initialized successfully", extra={
+            "operation": "firestore_test",
+            "step": "client_initialization",
+            "status": "success",
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        # Log attempt to write to Firestore
+        test_data = {
+            "test_field": "test_value",
+            "timestamp": datetime.now().isoformat(),
+            "operation": "firestore_test_write"
+        }
+        
+        logger.info("Attempting to write test document to Firestore", extra={
+            "operation": "firestore_test",
+            "step": "write_operation",
+            "collection": "urls",
+            "test_data": test_data,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        # Write test document to Firestore
+        doc_ref = db.collection("urls").add(test_data)
+        document_id = doc_ref[1].id
+        
+        logger.info("Test document written successfully to Firestore", extra={
+            "operation": "firestore_test",
+            "step": "write_operation",
+            "status": "success",
+            "collection": "urls",
+            "document_id": document_id,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        # Log successful completion
+        duration = (time.time() - start_time) * 1000
+        logger.info("Firestore test completed successfully", extra={
+            "operation": "firestore_test",
+            "step": "completion",
+            "status": "success",
+            "duration_ms": round(duration, 2),
+            "document_id": document_id,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        return jsonify({
+            "message": "Firestore test completed successfully",
+            "status": "success",
+            "document_id": document_id,
+            "collection": "urls",
+            "duration_ms": round(duration, 2),
+            "timestamp": datetime.now().isoformat()
+        }), 200
+        
     except Exception as e:
-        # Print error to Cloud Run logs
-        print(f"Error writing to Firestore: {e}")
-        return jsonify({"error": str(e)}), 500
+        # Comprehensive error logging for Cloud Logging
+        duration = (time.time() - start_time) * 1000
+        error_details = {
+            "operation": "firestore_test",
+            "step": "error_handling",
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "error_args": getattr(e, 'args', None),
+            "duration_ms": round(duration, 2),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Log error with full details
+        logger.error("Firestore test failed with exception", extra=error_details)
+        
+        # Also print to console for immediate visibility
+        print(f"🔥 Firestore Test Error: {type(e).__name__}: {str(e)}")
+        print(f"📊 Error Details: {error_details}")
+        
+        # Return detailed error response
+        return jsonify({
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "status": "error",
+            "duration_ms": round(duration, 2),
+            "timestamp": datetime.now().isoformat(),
+            "details": {
+                "operation": "firestore_test",
+                "step": "failed",
+                "error_info": error_details
+            }
+        }), 500
 
 @app.route('/health', methods=['GET'])
 def health_check():
