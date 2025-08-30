@@ -6,6 +6,10 @@ from datetime import datetime
 from core.url_service import shorten_url, get_long_url
 from services.logging_service import get_flask_app_logger
 
+import firebase_admin
+import google.cloud
+from firebase_admin import credentials, firestore
+
 # Initialize logger
 logger = get_flask_app_logger()
 
@@ -185,6 +189,60 @@ def get_url(short_code):
         
         return jsonify({
             'short_code': short_code,
+            'error': str(e),
+            'status': 'error'
+        }), 500
+
+@app.route('/api/firestore-test', methods=['GET'])
+def firestore_test():
+    """
+    Test endpoint for Firestore functionality
+    """
+    start_time = time.time()
+    
+    logger.info("Firestore test request received", extra={
+        "operation": "firestore_test",
+        "endpoint": "/api/firestore-test",
+        "method": "GET"
+    })
+    
+    try:
+        service_account_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+        cred = credentials.Certificate(service_account_path)
+        app = firebase_admin.initialize_app(cred)
+
+        store = firestore.client()
+
+        doc_ref = store.collection(u'test')
+        doc_ref.add({u'name': u'test', u'added': u'just now'})
+        
+        # This is a blank function as requested
+        # You can add Firestore testing logic here later
+        
+        duration = (time.time() - start_time) * 1000
+        logger.info("Firestore test completed", extra={
+            "operation": "firestore_test",
+            "duration_ms": round(duration, 2),
+            "status": "success"
+        })
+        
+        return jsonify({
+            'message': 'Firestore test endpoint reached successfully',
+            'status': 'success',
+            'timestamp': datetime.now().isoformat()
+        }), 200
+        
+    except Exception as e:
+        duration = (time.time() - start_time) * 1000
+        logger.error("Firestore test failed", extra={
+            "operation": "firestore_test",
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "duration_ms": round(duration, 2),
+            "status": "error"
+        })
+        
+        return jsonify({
             'error': str(e),
             'status': 'error'
         }), 500
