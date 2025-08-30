@@ -1,14 +1,16 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+# Standard library imports
 import os
 import time
 from datetime import datetime
+
+# Third-party imports
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from google.cloud import firestore
+
+# Local imports
 from core.url_service import shorten_url, get_long_url
 from services.logging_service import get_flask_app_logger
-
-import firebase_admin
-from google.cloud import firestore
-from firebase_admin import credentials, firestore
 
 # Initialize logger
 logger = get_flask_app_logger()
@@ -191,179 +193,6 @@ def get_url(short_code):
             'short_code': short_code,
             'error': str(e),
             'status': 'error'
-        }), 500
-
-@app.route('/api/firestore-debug', methods=['GET'])
-def firestore_debug():
-    """
-    Debug endpoint to check Firebase configuration
-    """
-    start_time = time.time()
-    
-    logger.info("Firestore debug request received", extra={
-        "operation": "firestore_debug",
-        "endpoint": "/api/firestore-debug",
-        "method": "GET"
-    })
-    
-    try:
-        # Check environment variables
-        service_account_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
-        
-        debug_info = {
-            'environment_variables': {
-                'GOOGLE_APPLICATION_CREDENTIALS': service_account_path,
-                'GOOGLE_APPLICATION_CREDENTIALS_set': service_account_path is not None,
-                'GOOGLE_APPLICATION_CREDENTIALS_exists': os.path.exists(service_account_path) if service_account_path else False
-            },
-            'file_info': {
-                'path': service_account_path,
-                'file_size': os.path.getsize(service_account_path) if service_account_path and os.path.exists(service_account_path) else None
-            } if service_account_path else None,
-            'current_working_directory': os.getcwd(),
-            'timestamp': datetime.now().isoformat()
-        }
-        
-        duration = (time.time() - start_time) * 1000
-        logger.info("Firestore debug completed", extra={
-            "operation": "firestore_debug",
-            "duration_ms": round(duration, 2),
-            "status": "success"
-        })
-        
-        return jsonify({
-            'message': 'Firestore debug information',
-            'status': 'success',
-            'debug_info': debug_info
-        }), 200
-        
-    except Exception as e:
-        duration = (time.time() - start_time) * 1000
-        logger.error("Firestore debug failed", extra={
-            "operation": "firestore_debug",
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "duration_ms": round(duration, 2),
-            "status": "error"
-        })
-        
-        return jsonify({
-            'error': str(e),
-            'status': 'error'
-        }), 500
-
-@app.route('/api/firestore-test', methods=['GET'])
-def firestore_test():
-    """
-    Test endpoint for Firestore functionality with comprehensive logging
-    """
-    start_time = time.time()
-    
-    logger.info("Firestore test request received", extra={
-        "operation": "firestore_test",
-        "endpoint": "/api/firestore-test",
-        "method": "GET",
-        "timestamp": datetime.now().isoformat()
-    })
-    
-    try:
-        # Log attempt to initialize Firestore client
-        logger.info("Initializing Firestore client", extra={
-            "operation": "firestore_test",
-            "step": "client_initialization",
-            "timestamp": datetime.now().isoformat()
-        })
-        
-        # Initialize Firestore client (ADC will handle credentials in Cloud Run)
-        db = firestore.Client()
-        
-        logger.info("Firestore client initialized successfully", extra={
-            "operation": "firestore_test",
-            "step": "client_initialization",
-            "status": "success",
-            "timestamp": datetime.now().isoformat()
-        })
-        
-        # Log attempt to write to Firestore
-        test_data = {
-            "test_field": "test_value",
-            "timestamp": datetime.now().isoformat(),
-            "operation": "firestore_test_write"
-        }
-        
-        logger.info("Attempting to write test document to Firestore", extra={
-            "operation": "firestore_test",
-            "step": "write_operation",
-            "collection": "urls",
-            "test_data": test_data,
-            "timestamp": datetime.now().isoformat()
-        })
-        
-        # Write test document to Firestore
-        doc_ref = db.collection("urls").add(test_data)
-        document_id = doc_ref[1].id
-        
-        logger.info("Test document written successfully to Firestore", extra={
-            "operation": "firestore_test",
-            "step": "write_operation",
-            "status": "success",
-            "collection": "urls",
-            "document_id": document_id,
-            "timestamp": datetime.now().isoformat()
-        })
-        
-        # Log successful completion
-        duration = (time.time() - start_time) * 1000
-        logger.info("Firestore test completed successfully", extra={
-            "operation": "firestore_test",
-            "step": "completion",
-            "status": "success",
-            "duration_ms": round(duration, 2),
-            "document_id": document_id,
-            "timestamp": datetime.now().isoformat()
-        })
-        
-        return jsonify({
-            "message": "Firestore test completed successfully",
-            "status": "success",
-            "document_id": document_id,
-            "collection": "urls",
-            "duration_ms": round(duration, 2),
-            "timestamp": datetime.now().isoformat()
-        }), 200
-        
-    except Exception as e:
-        # Comprehensive error logging for Cloud Logging
-        duration = (time.time() - start_time) * 1000
-        error_details = {
-            "operation": "firestore_test",
-            "step": "error_handling",
-            "error_type": type(e).__name__,
-            "error_message": str(e),
-            "error_args": getattr(e, 'args', None),
-            "duration_ms": round(duration, 2),
-            "timestamp": datetime.now().isoformat()
-        }
-        
-        # Log error with full details
-        logger.error("Firestore test failed with exception", extra=error_details)
-        
-        # Also print to console for immediate visibility
-        print(f"🔥 Firestore Test Error: {type(e).__name__}: {str(e)}")
-        print(f"📊 Error Details: {error_details}")
-        
-        # Return detailed error response
-        return jsonify({
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "status": "error",
-            "duration_ms": round(duration, 2),
-            "timestamp": datetime.now().isoformat(),
-            "details": {
-                "operation": "firestore_test",
-                "step": "failed",
-                "error_info": error_details
-            }
         }), 500
 
 @app.route('/health', methods=['GET'])
