@@ -207,14 +207,42 @@ def firestore_test():
     })
     
     try:
+        # Check if Firebase credentials are available
         service_account_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+        
+        if not service_account_path:
+            return jsonify({
+                'error': 'GOOGLE_APPLICATION_CREDENTIALS environment variable not set',
+                'message': 'Please set GOOGLE_APPLICATION_CREDENTIALS to your service account key file path',
+                'status': 'error',
+                'timestamp': datetime.now().isoformat()
+            }), 400
+        
+        if not os.path.exists(service_account_path):
+            return jsonify({
+                'error': f'Service account file not found at: {service_account_path}',
+                'message': 'Please check the file path in GOOGLE_APPLICATION_CREDENTIALS',
+                'status': 'error',
+                'timestamp': datetime.now().isoformat()
+            }), 400
+        
+        # Initialize Firebase with credentials
         cred = credentials.Certificate(service_account_path)
-        app = firebase_admin.initialize_app(cred)
-
+        firebase_app = firebase_admin.initialize_app(cred)
+        
+        # Test Firestore connection
         store = firestore.client()
-
+        
+        # Test write operation
         doc_ref = store.collection(u'test')
-        doc_ref.add({u'name': u'test', u'added': u'just now'})
+        doc = doc_ref.add({u'name': u'test', u'added': u'just now'})
+        
+        logger.info("Firestore test write successful", extra={
+            "operation": "firestore_test",
+            "document_id": doc[1].id,
+            "collection": "test",
+            "status": "success"
+        })
         
         # This is a blank function as requested
         # You can add Firestore testing logic here later
@@ -227,9 +255,16 @@ def firestore_test():
         })
         
         return jsonify({
-            'message': 'Firestore test endpoint reached successfully',
+            'message': 'Firestore test completed successfully',
             'status': 'success',
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'test_results': {
+                'firebase_initialized': True,
+                'firestore_connected': True,
+                'write_test_passed': True,
+                'collection_tested': 'test',
+                'document_added': True
+            }
         }), 200
         
     except Exception as e:
@@ -311,6 +346,7 @@ def root():
             'endpoints': {
                 'POST /api/data': 'Create short URL from long URL',
                 'GET /api/url/<short_code>': 'Get long URL from short code',
+                'GET /api/firestore-test': 'Test Firestore connection and write operations',
                 'GET /health': 'Health check endpoint',
                 'GET /': 'This information endpoint'
             },
