@@ -67,6 +67,15 @@ def initialize_firebase():
             "collection": "shortened_urls",
             "status": "success"
         })
+        
+        # Log database status after successful initialization
+        status = get_database_status()
+        logger.info("Database status after initialization", extra={
+            "operation": "firebase_initialization",
+            "database_status": status,
+            "status": "success"
+        })
+        
     except Exception as e:
         logger.error("Firestore initialization failed", extra={
             "error": str(e),
@@ -77,6 +86,23 @@ def initialize_firebase():
         db = None
         collection_ref = None
         url_database = {}
+        
+        # Log database status after fallback
+        status = get_database_status()
+        logger.info("Database status after fallback", extra={
+            "operation": "firebase_initialization",
+            "database_status": status,
+            "fallback": "in_memory_storage",
+            "status": "fallback"
+        })
+        
+        # Log final database status
+        final_status = get_database_status()
+        logger.info("Final database status after initialization", extra={
+            "operation": "firebase_initialization",
+            "final_database_status": final_status,
+            "status": "initialization_complete"
+        })
 
 def store_url_mapping(short_code, long_url):
     """Store URL mapping in Firestore or fallback to in-memory storage"""
@@ -96,6 +122,16 @@ def store_url_mapping(short_code, long_url):
                 "database": "firestore",
                 "status": "success"
             })
+            
+            # Log updated database status
+            status = get_database_status()
+            logger.info("Database status after storing URL", extra={
+                "operation": "store_url_mapping",
+                "short_code": short_code,
+                "database_status": status,
+                "status": "success"
+            })
+            
             return True
         except Exception as e:
             logger.error("Firestore storage failed, falling back to in-memory", extra={
@@ -107,9 +143,25 @@ def store_url_mapping(short_code, long_url):
             })
             # Fallback to in-memory storage
             url_database[short_code] = long_url
+            logger.info("URL mapping stored in memory", extra={
+                "operation": "store_url_mapping",
+                "short_code": short_code,
+                "database": "in_memory",
+                "status": "success"
+            })
+            
+            # Log updated database status
+            status = get_database_status()
+            logger.info("Database status after storing URL in memory", extra={
+                "operation": "store_url_mapping",
+                "short_code": short_code,
+                "database_status": status,
+                "status": "success"
+            })
+            
             return False
     else:
-        # Fallback to in-memory storage
+        # Fallback to in-memory storage when Firestore is not available
         url_database[short_code] = long_url
         logger.info("URL mapping stored in memory", extra={
             "operation": "store_url_mapping",
@@ -117,6 +169,16 @@ def store_url_mapping(short_code, long_url):
             "database": "in_memory",
             "status": "success"
         })
+        
+        # Log updated database status
+        status = get_database_status()
+        logger.info("Database status after storing URL in memory", extra={
+            "operation": "store_url_mapping",
+            "short_code": short_code,
+            "database_status": status,
+            "status": "success"
+        })
+        
         return False
 
 def check_url_exists(long_url):
@@ -138,6 +200,15 @@ def check_url_exists(long_url):
                 "operation": "check_url_exists",
                 "error": str(e),
                 "database": "firestore",
+                "status": "error"
+            })
+            
+            # Log database status after Firestore error
+            status = get_database_status()
+            logger.info("Database status after Firestore error", extra={
+                "operation": "check_url_exists",
+                "database_status": status,
+                "error": str(e),
                 "status": "error"
             })
     
