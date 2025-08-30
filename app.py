@@ -254,80 +254,23 @@ def firestore_debug():
 
 @app.route('/api/firestore-test', methods=['GET'])
 def firestore_test():
-    """
-    Test endpoint for Firestore functionality
-    """
-    start_time = time.time()
-    
-    logger.info("Firestore test request received", extra={
-        "operation": "firestore_test",
-        "endpoint": "/api/firestore-test",
-        "method": "GET"
-    })
-    
-    try:
-        # Initialize Firestore client (ADC will handle credentials in Cloud Run)
-        db = firestore.Client()
+    # Initialize Firestore client (ADC will handle credentials in Cloud Run)
+    db = firestore.Client()
 
-        # Reference to the collection "urls"
-        urls_ref = db.collection("urls")
+    # Reference to the collection "urls"
+    urls_ref = db.collection("urls")
 
-        # Example data you want to add
-        data = {
-            "url": "https://example.com",
-            "description": "Example website",
-            "created_at": firestore.SERVER_TIMESTAMP
-        }
+    # Example data you want to add
+    data = {
+        "url": "https://example.com",
+        "description": "Example website",
+        "created_at": firestore.SERVER_TIMESTAMP
+    }
 
-        # Add as a new document with auto-generated ID
-        doc_ref = urls_ref.add(data)
+    # Add as a new document with auto-generated ID
+    doc_ref = urls_ref.add(data)
 
-        print(f"Document added with ID: {doc_ref[1].id}")
-        
-        logger.info("Firestore test write successful", extra={
-            "operation": "firestore_test",
-            "document_id": doc[1].id,
-            "collection": "test",
-            "status": "success"
-        })
-        
-        # This is a blank function as requested
-        # You can add Firestore testing logic here later
-        
-        duration = (time.time() - start_time) * 1000
-        logger.info("Firestore test completed", extra={
-            "operation": "firestore_test",
-            "duration_ms": round(duration, 2),
-            "status": "success"
-        })
-        
-        return jsonify({
-            'message': 'Firestore test completed successfully',
-            'status': 'success',
-            'timestamp': datetime.now().isoformat(),
-            'test_results': {
-                'firebase_initialized': True,
-                'firestore_connected': True,
-                'write_test_passed': True,
-                'collection_tested': 'test',
-                'document_added': True
-            }
-        }), 200
-        
-    except Exception as e:
-        duration = (time.time() - start_time) * 1000
-        logger.error("Firestore test failed", extra={
-            "operation": "firestore_test",
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "duration_ms": round(duration, 2),
-            "status": "error"
-        })
-        
-        return jsonify({
-            'error': str(e),
-            'status': 'error'
-        }), 500
+    print(f"Document added with ID: {doc_ref[1].id}")
 
 @app.route('/health', methods=['GET'])
 def health_check():
