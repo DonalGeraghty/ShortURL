@@ -257,20 +257,14 @@ def firestore_test():
     # Initialize Firestore client (ADC will handle credentials in Cloud Run)
     db = firestore.Client()
 
-    # Reference to the collection "urls"
-    urls_ref = db.collection("urls")
-
-    # Example data you want to add
-    data = {
-        "url": "https://example.com",
-        "description": "Example website",
-        "created_at": firestore.SERVER_TIMESTAMP
-    }
-
-    # Add as a new document with auto-generated ID
-    doc_ref = urls_ref.add(data)
-
-    print(f"Document added with ID: {doc_ref[1].id}")
+    try:
+        data = request.get_json()
+        doc_ref = db.collection("urls").add(data)
+        return jsonify({"id": doc_ref[1].id}), 200
+    except Exception as e:
+        # Print error to Cloud Run logs
+        print(f"Error writing to Firestore: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/health', methods=['GET'])
 def health_check():
