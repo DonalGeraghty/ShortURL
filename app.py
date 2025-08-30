@@ -7,7 +7,7 @@ from core.url_service import shorten_url, get_long_url
 from services.logging_service import get_flask_app_logger
 
 import firebase_admin
-import google.cloud
+from google.cloud import firestore
 from firebase_admin import credentials, firestore
 
 # Initialize logger
@@ -193,6 +193,65 @@ def get_url(short_code):
             'status': 'error'
         }), 500
 
+@app.route('/api/firestore-debug', methods=['GET'])
+def firestore_debug():
+    """
+    Debug endpoint to check Firebase configuration
+    """
+    start_time = time.time()
+    
+    logger.info("Firestore debug request received", extra={
+        "operation": "firestore_debug",
+        "endpoint": "/api/firestore-debug",
+        "method": "GET"
+    })
+    
+    try:
+        # Check environment variables
+        service_account_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+        
+        debug_info = {
+            'environment_variables': {
+                'GOOGLE_APPLICATION_CREDENTIALS': service_account_path,
+                'GOOGLE_APPLICATION_CREDENTIALS_set': service_account_path is not None,
+                'GOOGLE_APPLICATION_CREDENTIALS_exists': os.path.exists(service_account_path) if service_account_path else False
+            },
+            'file_info': {
+                'path': service_account_path,
+                'file_size': os.path.getsize(service_account_path) if service_account_path and os.path.exists(service_account_path) else None
+            } if service_account_path else None,
+            'current_working_directory': os.getcwd(),
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        duration = (time.time() - start_time) * 1000
+        logger.info("Firestore debug completed", extra={
+            "operation": "firestore_debug",
+            "duration_ms": round(duration, 2),
+            "status": "success"
+        })
+        
+        return jsonify({
+            'message': 'Firestore debug information',
+            'status': 'success',
+            'debug_info': debug_info
+        }), 200
+        
+    except Exception as e:
+        duration = (time.time() - start_time) * 1000
+        logger.error("Firestore debug failed", extra={
+            "operation": "firestore_debug",
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "duration_ms": round(duration, 2),
+            "status": "error"
+        })
+        
+        return jsonify({
+            'error': str(e),
+            'status': 'error'
+        }), 500
+
 @app.route('/api/firestore-test', methods=['GET'])
 def firestore_test():
     """
@@ -207,35 +266,23 @@ def firestore_test():
     })
     
     try:
-        # Check if Firebase credentials are available
-        service_account_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
-        
-        if not service_account_path:
-            return jsonify({
-                'error': 'GOOGLE_APPLICATION_CREDENTIALS environment variable not set',
-                'message': 'Please set GOOGLE_APPLICATION_CREDENTIALS to your service account key file path',
-                'status': 'error',
-                'timestamp': datetime.now().isoformat()
-            }), 400
-        
-        if not os.path.exists(service_account_path):
-            return jsonify({
-                'error': f'Service account file not found at: {service_account_path}',
-                'message': 'Please check the file path in GOOGLE_APPLICATION_CREDENTIALS',
-                'status': 'error',
-                'timestamp': datetime.now().isoformat()
-            }), 400
-        
-        # Initialize Firebase with credentials
-        cred = credentials.Certificate(service_account_path)
-        firebase_app = firebase_admin.initialize_app(cred)
-        
-        # Test Firestore connection
-        store = firestore.client()
-        
-        # Test write operation
-        doc_ref = store.collection(u'test')
-        doc = doc_ref.add({u'name': u'test', u'added': u'just now'})
+        # Initialize Firestore client (ADC will handle credentials in Cloud Run)
+        db = firestore.Client()
+
+        # Reference to the collection "urls"
+        urls_ref = db.collection("urls")
+
+        # Example data you want to add
+        data = {
+            "url": "https://example.com",
+            "description": "Example website",
+            "created_at": firestore.SERVER_TIMESTAMP
+        }
+
+        # Add as a new document with auto-generated ID
+        doc_ref = urls_ref.add(data)
+
+        print(f"Document added with ID: {doc_ref[1].id}")
         
         logger.info("Firestore test write successful", extra={
             "operation": "firestore_test",
