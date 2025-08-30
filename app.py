@@ -365,18 +365,6 @@ def firestore_test():
                 "error_info": error_details
             }
         }), 500
-        return jsonify({
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "status": "error",
-            "duration_ms": round(duration, 2),
-            "timestamp": datetime.now().isoformat(),
-            "details": {
-                "operation": "firestore_test",
-                "step": "failed",
-                "error_info": error_details
-            }
-        }), 500
 
 @app.route('/health', methods=['GET'])
 def health_check():

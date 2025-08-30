@@ -61,10 +61,10 @@ def initialize_firebase():
     # Initialize Firestore client
     try:
         db = firestore.client()
-        collection_ref = db.collection('shortened_urls')
+        collection_ref = db.collection('urls')
         logger.info("Firestore client initialized successfully", extra={
             "database": "firestore",
-            "collection": "shortened_urls",
+            "collection": "urls",
             "status": "success"
         })
         
@@ -267,5 +267,5 @@ def get_database_status():
         "firestore_available": collection_ref is not None,
         "in_memory_available": True,
         "url_count": len(url_database),
-        "collection_name": "shortened_urls" if collection_ref else None
+        "collection_name": "urls" if collection_ref else None
     }
