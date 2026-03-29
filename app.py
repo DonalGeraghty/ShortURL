@@ -16,6 +16,7 @@ from core.auth_service import (
     register_user,
 )
 from services.logging_service import get_flask_app_logger
+from services.firebase_service import get_habits_map, merge_habits_map, patch_habit_cell
 
 # Initialize logger
 logger = get_flask_app_logger()
@@ -117,6 +118,57 @@ def auth_me():
     return jsonify({"status": "success", "user": {"email": email}}), 200
 
 
+@app.route("/api/habits", methods=["GET"])
+def habits_get():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    cells = get_habits_map(email)
+    return jsonify({"status": "success", "cells": cells}), 200
+
+
+@app.route("/api/habits", methods=["PUT"])
+def habits_put_merge():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    incoming = data.get("cells")
+    if not isinstance(incoming, dict):
+        return jsonify({"status": "error", "error": "invalid_body"}), 400
+    ok, err, merged = merge_habits_map(email, incoming)
+    if not ok:
+        code = 400
+        if err == "no_user":
+            code = 404
+        return jsonify({"status": "error", "error": err or "merge_failed"}), code
+    return jsonify({"status": "success", "cells": merged}), 200
+
+
+@app.route("/api/habits/cell", methods=["PATCH"])
+def habits_patch_cell():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    date_str = data.get("date")
+    habit_id = data.get("habitId")
+    state = data.get("state")
+    ok, err = patch_habit_cell(email, date_str, habit_id, state)
+    if not ok:
+        code = 400
+        if err == "no_user":
+            code = 404
+        elif err == "write_failed":
+            code = 500
+        return jsonify({"status": "error", "error": err or "patch_failed"}), code
+    cells = get_habits_map(email)
+    return jsonify({"status": "success", "cells": cells}), 200
+
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -182,6 +234,9 @@ def root():
                 'POST /api/auth/register': 'Register with email and password (password stored as hash)',
                 'POST /api/auth/login': 'Login; returns JWT bearer token',
                 'GET /api/auth/me': 'Current user from Authorization: Bearer <token>',
+                'GET /api/habits': 'Habit tracker cells for current user (JSON map)',
+                'PUT /api/habits': 'Merge habit cells body { cells: { "YYYY-MM-DD_id": "done"|"fail"|"none" } }',
+                'PATCH /api/habits/cell': 'Set one cell { date, habitId, state }',
                 'GET /health': 'Health check endpoint',
                 'GET /': 'This information endpoint'
             },

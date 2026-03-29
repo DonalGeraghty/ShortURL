@@ -1,7 +1,12 @@
 import os
+import re
 from firebase_admin import credentials, firestore, initialize_app
 from dotenv import load_dotenv
 from .logging_service import logger
+
+HABIT_IDS = frozenset({"spar", "bigshop", "amazon", "workout", "subs", "save"})
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_CELL_KEY_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})_(.+)$")
 
 # Load environment variables
 load_dotenv()
@@ -10,6 +15,8 @@ load_dotenv()
 db = None
 users_collection_ref = None
 auth_users_memory = {}
+# In-memory habit cells when Firestore is unavailable (mirrors user doc field habits_v1)
+habit_memory = {}
 
 
 def initialize_firebase():
@@ -184,3 +191,143 @@ def get_user_record(email):
             "password_hash": row["password_hash"],
         }
     return None
+
+
+def _user_exists(email_key):
+    if users_collection_ref:
+        try:
+            if users_collection_ref.document(email_key).get().exists:
+                return True
+        except Exception as e:
+            logger.error("Firestore user exists check failed", extra={
+                "operation": "_user_exists",
+                "error": str(e),
+            })
+    return email_key in auth_users_memory
+
+
+def _normalize_habits_dict(raw):
+    if not isinstance(raw, dict):
+        return {}
+    out = {}
+    for k, v in raw.items():
+        if not isinstance(k, str) or not isinstance(v, str):
+            continue
+        m = _CELL_KEY_RE.match(k)
+        if not m:
+            continue
+        date_str, habit_id = m.group(1), m.group(2)
+        if habit_id not in HABIT_IDS:
+            continue
+        if not _DATE_RE.match(date_str):
+            continue
+        if v not in ("done", "fail"):
+            continue
+        out[k] = v
+    return out
+
+
+def get_habits_map(email):
+    """Return habit cell map keyed as YYYY-MM-DD_habitId -> done|fail."""
+    email_key = _normalize_user_email(email)
+    if not email_key:
+        return {}
+
+    if users_collection_ref:
+        try:
+            doc = users_collection_ref.document(email_key).get()
+            if doc.exists:
+                data = doc.to_dict() or {}
+                h = data.get("habits_v1")
+                return _normalize_habits_dict(h) if isinstance(h, dict) else {}
+        except Exception as e:
+            logger.error("Firestore habits read failed", extra={
+                "operation": "get_habits_map",
+                "error": str(e),
+            })
+
+    return _normalize_habits_dict(dict(habit_memory.get(email_key, {})))
+
+
+def _write_habits_map(email_key, habits_dict):
+    """Persist full habits map for user."""
+    if users_collection_ref:
+        try:
+            doc_ref = users_collection_ref.document(email_key)
+            if not doc_ref.get().exists:
+                return False
+            doc_ref.set({"habits_v1": habits_dict}, merge=True)
+            return True
+        except Exception as e:
+            logger.error("Firestore habits write failed", extra={
+                "operation": "_write_habits_map",
+                "error": str(e),
+            })
+            return False
+
+    if email_key not in auth_users_memory:
+        return False
+    habit_memory[email_key] = dict(habits_dict)
+    return True
+
+
+def patch_habit_cell(email, date_str, habit_id, state):
+    """
+    Set one cell: state is done | fail | none (none removes the key).
+    Returns (ok, error_code).
+    """
+    email_key = _normalize_user_email(email)
+    if not email_key or not _user_exists(email_key):
+        return False, "no_user"
+    if habit_id not in HABIT_IDS:
+        return False, "invalid_habit"
+    if not _DATE_RE.match(date_str or ""):
+        return False, "invalid_date"
+    if state not in ("done", "fail", "none"):
+        return False, "invalid_state"
+
+    cell_key = f"{date_str}_{habit_id}"
+    habits = get_habits_map(email)
+    if state == "none":
+        habits.pop(cell_key, None)
+    else:
+        habits[cell_key] = state
+
+    if _write_habits_map(email_key, habits):
+        return True, None
+    return False, "write_failed"
+
+
+def merge_habits_map(email, incoming):
+    """
+    Merge validated cells into stored habits (client keys win).
+    incoming: dict cell_key -> done|fail|none; none removes key.
+    Returns (ok, error_code, merged_dict).
+    """
+    email_key = _normalize_user_email(email)
+    if not email_key or not _user_exists(email_key):
+        return False, "no_user", None
+    if not isinstance(incoming, dict):
+        return False, "invalid_body", None
+    if len(incoming) > 2500:
+        return False, "too_many_keys", None
+
+    habits = get_habits_map(email)
+    for k, v in incoming.items():
+        if not isinstance(k, str):
+            continue
+        m = _CELL_KEY_RE.match(k)
+        if not m:
+            continue
+        date_str, habit_id = m.group(1), m.group(2)
+        if habit_id not in HABIT_IDS:
+            continue
+        if v == "none":
+            habits.pop(k, None)
+        elif v in ("done", "fail"):
+            habits[k] = v
+
+    habits = _normalize_habits_dict(habits)
+    if _write_habits_map(email_key, habits):
+        return True, None, habits
+    return False, "write_failed", None
