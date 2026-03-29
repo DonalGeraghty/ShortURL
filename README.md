@@ -8,7 +8,7 @@ Cloud Run service name: **`janus-gate`**. After deploy, the public URL is typica
 
 `https://janus-gate-<PROJECT_NUMBER>.europe-west1.run.app`
 
-Point the portfolio frontend `API_BASE_URL` in `DonalGeraghtyHome/src/config/api.js` at that URL.
+Point the Minerva frontend `API_BASE_URL` (`minerva/src/config/api.js`) at that URL.
 
 ## GitHub
 
