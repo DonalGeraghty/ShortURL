@@ -3,3 +3,4 @@ Flask-CORS==4.0.0
 python-dotenv==1.0.0
 firebase-admin==6.2.0
 google-cloud-firestore==2.11.1
+PyJWT==2.8.0

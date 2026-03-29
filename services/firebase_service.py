@@ -9,11 +9,13 @@ load_dotenv()
 # Global variables for database state
 db = None
 collection_ref = None
+users_collection_ref = None
 url_database = {}
+auth_users_memory = {}
 
 def initialize_firebase():
     """Initialize Firebase Admin SDK with Google Cloud automatic authentication"""
-    global db, collection_ref, url_database
+    global db, collection_ref, users_collection_ref, url_database, auth_users_memory
     
     # Initialize Firebase Admin SDK with Google Cloud automatic authentication
     # This will work automatically when deployed on Google Cloud
@@ -42,8 +44,9 @@ def initialize_firebase():
                     "auth_method": "service_account_key",
                     "status": "failed"
                 })
-                print("⚠️  Falling back to in-memory storage")
+                print("Warning: Falling back to in-memory storage")
                 url_database = {}
+                auth_users_memory = {}
                 return
         else:
             # Fallback to in-memory storage if no credentials available
@@ -52,16 +55,18 @@ def initialize_firebase():
                 "fallback": "in_memory_storage",
                 "status": "warning"
             })
-            print("💡 For local development: Set GOOGLE_APPLICATION_CREDENTIALS environment variable")
-            print("💡 For production: Deploy on Google Cloud with proper IAM service account")
-            print("📝 Using in-memory storage as fallback")
+            print("Tip: For local development, set GOOGLE_APPLICATION_CREDENTIALS")
+            print("Tip: For production, deploy on Google Cloud with proper IAM service account")
+            print("Using in-memory storage as fallback")
             url_database = {}
+            auth_users_memory = {}
             return
 
     # Initialize Firestore client
     try:
         db = firestore.client()
         collection_ref = db.collection('urls')
+        users_collection_ref = db.collection('users')
         logger.info("Firestore client initialized successfully", extra={
             "database": "firestore",
             "collection": "urls",
@@ -82,10 +87,12 @@ def initialize_firebase():
             "database": "firestore",
             "status": "failed"
         })
-        print("📝 Falling back to in-memory storage")
+        print("Falling back to in-memory storage")
         db = None
         collection_ref = None
+        users_collection_ref = None
         url_database = {}
+        auth_users_memory = {}
         
         # Log database status after fallback
         status = get_database_status()
@@ -267,5 +274,88 @@ def get_database_status():
         "firestore_available": collection_ref is not None,
         "in_memory_available": True,
         "url_count": len(url_database),
-        "collection_name": "urls" if collection_ref else None
+        "collection_name": "urls" if collection_ref else None,
+        "users_firestore": users_collection_ref is not None,
+        "users_in_memory_count": len(auth_users_memory),
     }
+
+
+def _normalize_user_email(email):
+    return (email or "").strip().lower()
+
+
+def create_user_record(email, password_hash):
+    """Create a user with hashed password. Returns (success, error_code)."""
+    global auth_users_memory
+    email_key = _normalize_user_email(email)
+    if not email_key or "@" not in email_key:
+        return False, "invalid_email"
+
+    if users_collection_ref:
+        try:
+            doc_ref = users_collection_ref.document(email_key)
+            if doc_ref.get().exists:
+                return False, "exists"
+            doc_ref.set({
+                "email": email_key,
+                "password_hash": password_hash,
+                "created_at": firestore.SERVER_TIMESTAMP,
+            })
+            logger.info("User stored in Firestore", extra={
+                "operation": "create_user_record",
+                "email": email_key,
+                "status": "success",
+            })
+            return True, None
+        except Exception as e:
+            logger.error("Firestore user create failed, using memory", extra={
+                "operation": "create_user_record",
+                "error": str(e),
+                "status": "fallback",
+            })
+            if email_key in auth_users_memory:
+                return False, "exists"
+            auth_users_memory[email_key] = {
+                "email": email_key,
+                "password_hash": password_hash,
+            }
+            return True, None
+
+    if email_key in auth_users_memory:
+        return False, "exists"
+    auth_users_memory[email_key] = {
+        "email": email_key,
+        "password_hash": password_hash,
+    }
+    return True, None
+
+
+def get_user_record(email):
+    """Return dict with email and password_hash, or None."""
+    global auth_users_memory
+    email_key = _normalize_user_email(email)
+    if not email_key:
+        return None
+
+    if users_collection_ref:
+        try:
+            doc = users_collection_ref.document(email_key).get()
+            if doc.exists:
+                data = doc.to_dict() or {}
+                return {
+                    "email": data.get("email", email_key),
+                    "password_hash": data.get("password_hash"),
+                }
+        except Exception as e:
+            logger.error("Firestore user read failed", extra={
+                "operation": "get_user_record",
+                "error": str(e),
+            })
+
+    row = auth_users_memory.get(email_key)
+    if row:
+        return {
+            "email": row["email"],
+            "password_hash": row["password_hash"],
+        }
+    return None

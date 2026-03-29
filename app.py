@@ -10,6 +10,11 @@ from google.cloud import firestore
 
 # Local imports
 from core.url_service import shorten_url, get_long_url
+from core.auth_service import (
+    decode_access_token,
+    login_user,
+    register_user,
+)
 from services.logging_service import get_flask_app_logger
 
 # Initialize logger
@@ -17,6 +22,13 @@ logger = get_flask_app_logger()
 
 app = Flask(__name__)
 CORS(app)
+
+
+def _bearer_token():
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        return auth[7:].strip()
+    return None
 
 # Request logging middleware
 @app.before_request
@@ -129,6 +141,54 @@ def handle_post():
             "status": "error"
         })
         return f"Error: {str(e)}", 500
+
+@app.route("/api/auth/register", methods=["POST"])
+def auth_register():
+    data = request.get_json(silent=True) or {}
+    email = data.get("email")
+    password = data.get("password")
+    payload, err, _ = register_user(email, password)
+    if err == "invalid_email":
+        return jsonify({"status": "error", "error": "Invalid email"}), 400
+    if err == "weak_password":
+        return jsonify({
+            "status": "error",
+            "error": "Password must be at least 8 characters",
+        }), 400
+    if err == "exists":
+        return jsonify({"status": "error", "error": "An account with this email already exists"}), 409
+    if err:
+        return jsonify({"status": "error", "error": "Registration failed"}), 500
+    return jsonify({
+        "status": "success",
+        "token": payload["token"],
+        "user": {"email": payload["email"]},
+    }), 201
+
+
+@app.route("/api/auth/login", methods=["POST"])
+def auth_login():
+    data = request.get_json(silent=True) or {}
+    email = data.get("email")
+    password = data.get("password")
+    payload, err, _ = login_user(email, password)
+    if err:
+        return jsonify({"status": "error", "error": "Invalid email or password"}), 401
+    return jsonify({
+        "status": "success",
+        "token": payload["token"],
+        "user": {"email": payload["email"]},
+    }), 200
+
+
+@app.route("/api/auth/me", methods=["GET"])
+def auth_me():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    return jsonify({"status": "success", "user": {"email": email}}), 200
+
 
 @app.route('/api/url/<short_code>', methods=['GET'])
 def get_url(short_code):
@@ -259,6 +319,9 @@ def root():
             'endpoints': {
                 'POST /api/data': 'Create short URL from long URL',
                 'GET /api/url/<short_code>': 'Get long URL from short code',
+                'POST /api/auth/register': 'Register with email and password (password stored as hash)',
+                'POST /api/auth/login': 'Login; returns JWT bearer token',
+                'GET /api/auth/me': 'Current user from Authorization: Bearer <token>',
                 'GET /api/firestore-test': 'Test Firestore connection and write operations',
                 'GET /health': 'Health check endpoint',
                 'GET /': 'This information endpoint'
