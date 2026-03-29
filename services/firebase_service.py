@@ -4,7 +4,7 @@ from firebase_admin import credentials, firestore, initialize_app
 from dotenv import load_dotenv
 from .logging_service import logger
 
-HABIT_IDS = frozenset({"spar", "bigshop", "amazon", "workout", "subs", "save"})
+
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _CELL_KEY_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})_(.+)$")
 
@@ -17,6 +17,7 @@ users_collection_ref = None
 auth_users_memory = {}
 # In-memory habit cells when Firestore is unavailable (mirrors user doc field habits_v1)
 habit_memory = {}
+custom_habits_memory = {}
 
 
 def initialize_firebase():
@@ -217,7 +218,7 @@ def _normalize_habits_dict(raw):
         if not m:
             continue
         date_str, habit_id = m.group(1), m.group(2)
-        if habit_id not in HABIT_IDS:
+        if not re.match(r"^[a-zA-Z0-9_\-]+$", habit_id):
             continue
         if not _DATE_RE.match(date_str):
             continue
@@ -279,7 +280,7 @@ def patch_habit_cell(email, date_str, habit_id, state):
     email_key = _normalize_user_email(email)
     if not email_key or not _user_exists(email_key):
         return False, "no_user"
-    if habit_id not in HABIT_IDS:
+    if not re.match(r"^[a-zA-Z0-9_\-]+$", str(habit_id)):
         return False, "invalid_habit"
     if not _DATE_RE.match(date_str or ""):
         return False, "invalid_date"
@@ -320,7 +321,7 @@ def merge_habits_map(email, incoming):
         if not m:
             continue
         date_str, habit_id = m.group(1), m.group(2)
-        if habit_id not in HABIT_IDS:
+        if not re.match(r"^[a-zA-Z0-9_\-]+$", str(habit_id)):
             continue
         if v == "none":
             habits.pop(k, None)
@@ -331,3 +332,57 @@ def merge_habits_map(email, incoming):
     if _write_habits_map(email_key, habits):
         return True, None, habits
     return False, "write_failed", None
+
+def get_custom_habits(email):
+    """Return custom habits list for user."""
+    email_key = _normalize_user_email(email)
+    if not email_key:
+        return []
+
+    if users_collection_ref:
+        try:
+            doc = users_collection_ref.document(email_key).get()
+            if doc.exists:
+                data = doc.to_dict() or {}
+                h = data.get("custom_habits_v1")
+                return h if isinstance(h, list) else []
+        except Exception as e:
+            logger.error("Firestore custom habits read failed", extra={
+                "operation": "get_custom_habits",
+                "error": str(e),
+            })
+
+    return list(custom_habits_memory.get(email_key, []))
+
+def update_custom_habits(email, habits_list):
+    """Persist full custom habits list for user."""
+    email_key = _normalize_user_email(email)
+    if not email_key or not _user_exists(email_key):
+        return False, "no_user"
+    if not isinstance(habits_list, list):
+        return False, "invalid_body"
+    
+    # Simple validation of habit objects
+    valid_habits = []
+    for h in habits_list:
+        if isinstance(h, dict) and "id" in h and re.match(r"^[a-zA-Z0-9_\-]+$", str(h["id"])):
+            valid_habits.append(h)
+
+    if users_collection_ref:
+        try:
+            doc_ref = users_collection_ref.document(email_key)
+            if not doc_ref.get().exists:
+                return False, "no_user"
+            doc_ref.set({"custom_habits_v1": valid_habits}, merge=True)
+            return True, None
+        except Exception as e:
+            logger.error("Firestore custom habits write failed", extra={
+                "operation": "update_custom_habits",
+                "error": str(e),
+            })
+            return False, "write_failed"
+
+    if email_key not in auth_users_memory:
+        return False, "no_user"
+    custom_habits_memory[email_key] = list(valid_habits)
+    return True, None

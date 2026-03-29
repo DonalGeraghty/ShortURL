@@ -16,7 +16,10 @@ from core.auth_service import (
     register_user,
 )
 from services.logging_service import get_flask_app_logger
-from services.firebase_service import get_habits_map, merge_habits_map, patch_habit_cell
+from services.firebase_service import (
+    get_habits_map, merge_habits_map, patch_habit_cell,
+    get_custom_habits, update_custom_habits
+)
 
 # Initialize logger
 logger = get_flask_app_logger()
@@ -167,6 +170,35 @@ def habits_patch_cell():
         return jsonify({"status": "error", "error": err or "patch_failed"}), code
     cells = get_habits_map(email)
     return jsonify({"status": "success", "cells": cells}), 200
+
+
+@app.route("/api/user/habits", methods=["GET"])
+def user_habits_get():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    habits = get_custom_habits(email)
+    return jsonify({"status": "success", "habits": habits}), 200
+
+
+@app.route("/api/user/habits", methods=["PUT"])
+def user_habits_put():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    incoming = data.get("habits")
+    if not isinstance(incoming, list):
+        return jsonify({"status": "error", "error": "invalid_body"}), 400
+    ok, err = update_custom_habits(email, incoming)
+    if not ok:
+        code = 400
+        if err == "no_user":
+            code = 404
+        return jsonify({"status": "error", "error": err or "update_failed"}), code
+    return jsonify({"status": "success", "habits": incoming}), 200
 
 
 @app.route('/health', methods=['GET'])
