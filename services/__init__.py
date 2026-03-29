@@ -1,5 +1,5 @@
 """
-Services package for URL Shortener API
+Services package for Janus (portfolio auth API).
 Contains Firebase service and logging service
 """
 

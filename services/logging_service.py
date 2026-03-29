@@ -1,6 +1,6 @@
 """
-Logging configuration for URL Shortener API
-Supports different environments (development, production, Google Cloud Run)
+Logging configuration for Janus (portfolio auth API).
+Supports development, production, and Google Cloud Run.
 """
 
 import os
@@ -63,7 +63,7 @@ def get_logging_config(environment=None):
             }
         },
         'loggers': {
-            'url_shortener': {
+            'janus': {
                 'level': 'INFO',
                 'handlers': ['console'],
                 'propagate': False
@@ -89,21 +89,21 @@ def get_logging_config(environment=None):
     if environment == 'development':
         base_config['handlers']['console']['level'] = 'DEBUG'
         base_config['handlers']['console']['formatter'] = 'detailed'
-        base_config['loggers']['url_shortener']['level'] = 'DEBUG'
+        base_config['loggers']['janus']['level'] = 'DEBUG'
         base_config['loggers']['flask_app']['level'] = 'DEBUG'
         base_config['root']['level'] = 'DEBUG'
         
     elif environment == 'cloud_run':
         # Google Cloud Run specific configuration
         base_config['handlers']['console']['formatter'] = 'structured'
-        base_config['loggers']['url_shortener']['level'] = 'INFO'
+        base_config['loggers']['janus']['level'] = 'INFO'
         base_config['loggers']['flask_app']['level'] = 'INFO'
         base_config['root']['level'] = 'WARNING'
         
     elif environment == 'production':
         # Production configuration with file logging
         base_config['handlers']['console']['level'] = 'WARNING'
-        base_config['loggers']['url_shortener']['handlers'] = ['console', 'error_file']
+        base_config['loggers']['janus']['handlers'] = ['console', 'error_file']
         base_config['loggers']['flask_app']['handlers'] = ['console', 'access_file']
         base_config['root']['level'] = 'WARNING'
     
@@ -121,7 +121,7 @@ def setup_logging(environment=None):
     logging.config.dictConfig(config)
     
     # Get logger
-    logger = logging.getLogger('url_shortener')
+    logger = logging.getLogger('janus')
     
     # Log configuration applied
     logger.info("Logging configuration applied", extra={
@@ -157,9 +157,9 @@ def get_logger(name, environment=None):
     return logging.getLogger(name)
 
 # Convenience functions for common loggers
-def get_url_shortener_logger():
-    """Get the URL shortener logger"""
-    return get_logger('url_shortener')
+def get_janus_logger():
+    """Primary application logger (codename Janus)."""
+    return get_logger('janus')
 
 def get_flask_app_logger():
     """Get the Flask app logger"""
@@ -194,13 +194,13 @@ def set_log_level(logger_name, level):
 
 def enable_debug_logging():
     """Enable debug logging for development"""
-    set_log_level('url_shortener', 'DEBUG')
+    set_log_level('janus', 'DEBUG')
     set_log_level('flask_app', 'DEBUG')
     set_log_level('root', 'DEBUG')
 
 def enable_production_logging():
     """Enable production logging (INFO and above)"""
-    set_log_level('url_shortener', 'INFO')
+    set_log_level('janus', 'INFO')
     set_log_level('flask_app', 'INFO')
     set_log_level('root', 'WARNING')
 
@@ -214,7 +214,7 @@ def log_performance(operation, duration_ms, **kwargs):
         duration_ms (float): Duration in milliseconds
         **kwargs: Additional context information
     """
-    logger = get_url_shortener_logger()
+    logger = get_janus_logger()
     
     log_data = {
         "operation": operation,

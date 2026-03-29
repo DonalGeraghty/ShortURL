@@ -1,3 +1,5 @@
+# Portfolio auth API — codename Janus (Roman god of doorways and transitions).
+
 # Standard library imports
 import os
 import time

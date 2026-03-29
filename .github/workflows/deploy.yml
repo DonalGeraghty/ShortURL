@@ -9,7 +9,8 @@ on:
 
 env:
   PROJECT_ID: donal-geraghty-home
-  SERVICE_NAME: url-shortener-api
+  # Codename Janus — Roman god of gateways; service id: janus-gate
+  SERVICE_NAME: janus-gate
   REGION: europe-west1
 
 jobs:
@@ -61,18 +62,18 @@ jobs:
           
       - name: Create service account if not exists
         run: |
-          if ! gcloud iam service-accounts describe url-shortener@${{ env.PROJECT_ID }}.iam.gserviceaccount.com &> /dev/null; then
-            gcloud iam service-accounts create url-shortener \
-              --display-name="URL Shortener API Service Account"
+          if ! gcloud iam service-accounts describe janus-gate@${{ env.PROJECT_ID }}.iam.gserviceaccount.com &> /dev/null; then
+            gcloud iam service-accounts create janus-gate \
+              --display-name="Janus (portfolio auth API)"
           fi
           
       - name: Grant Firestore permissions
         run: |
           gcloud projects add-iam-policy-binding ${{ env.PROJECT_ID }} \
-            --member="serviceAccount:url-shortener@${{ env.PROJECT_ID }}.iam.gserviceaccount.com" \
+            --member="serviceAccount:janus-gate@${{ env.PROJECT_ID }}.iam.gserviceaccount.com" \
             --role="roles/datastore.user"
           gcloud projects add-iam-policy-binding ${{ env.PROJECT_ID }} \
-            --member="serviceAccount:url-shortener@${{ env.PROJECT_ID }}.iam.gserviceaccount.com" \
+            --member="serviceAccount:janus-gate@${{ env.PROJECT_ID }}.iam.gserviceaccount.com" \
             --role="roles/datastore.viewer"
             
       - name: Deploy to Cloud Run
@@ -80,7 +81,7 @@ jobs:
           gcloud run deploy ${{ env.SERVICE_NAME }} \
             --source . \
             --region ${{ env.REGION }} \
-            --service-account url-shortener@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
+            --service-account janus-gate@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
             --allow-unauthenticated \
             --port 8080 \
             --memory 512Mi \
