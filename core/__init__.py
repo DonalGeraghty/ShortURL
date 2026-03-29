@@ -1,6 +1,3 @@
-"""
-Core business logic package for URL Shortener API
-Contains the main URL shortening and retrieval logic
-"""
+"""Core business logic for the portfolio auth API."""
 
 __version__ = "1.0.0"

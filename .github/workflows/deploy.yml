@@ -32,7 +32,6 @@ jobs:
           
       - name: Validate imports
         run: |
-          python -c "from core.url_service import shorten_url, get_long_url; print('✅ Core URL service imports successful')"
           python -c "from services.firebase_service import initialize_firebase; print('✅ Firebase service imports successful')"
           python -c "from services.logging_service import logger; print('✅ Logging service imports successful')"
           python -c "from core.auth_service import register_user, login_user; print('✅ Auth service imports successful')"
@@ -110,5 +109,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `🚀 **Deployment successful!**\n\nYour URL shortener API is now live at:\n${{ steps.service-url.outputs.url }}\n\n**API Endpoints:**\n- POST ${{ steps.service-url.outputs.url }}/api/data - Create short URL\n- GET ${{ steps.service-url.outputs.url }}/api/url/{id} - Get long URL\n- GET ${{ steps.service-url.outputs.url }}/health - Health check\n- GET ${{ steps.service-url.outputs.url }}/ - API info`
+              body: `🚀 **Deployment successful!**\n\nAuth API live at:\n${{ steps.service-url.outputs.url }}\n\n**Endpoints:**\n- POST ${{ steps.service-url.outputs.url }}/api/auth/register\n- POST ${{ steps.service-url.outputs.url }}/api/auth/login\n- GET ${{ steps.service-url.outputs.url }}/api/auth/me\n- GET ${{ steps.service-url.outputs.url }}/health`
             })

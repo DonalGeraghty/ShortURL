@@ -6,10 +6,8 @@ from datetime import datetime
 # Third-party imports
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from google.cloud import firestore
 
 # Local imports
-from core.url_service import shorten_url, get_long_url
 from core.auth_service import (
     decode_access_token,
     login_user,
@@ -35,11 +33,11 @@ def _bearer_token():
 def log_request_info():
     """Log request information before processing"""
     request.start_time = time.time()
-    
+
     # Extract client information
     client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
     user_agent = request.headers.get('User-Agent', 'Unknown')
-    
+
     logger.info("Request received", extra={
         "operation": "request_received",
         "method": request.method,
@@ -55,7 +53,7 @@ def log_response_info(response):
     """Log response information after processing"""
     if hasattr(request, 'start_time'):
         duration = (time.time() - request.start_time) * 1000  # Convert to milliseconds
-        
+
         logger.info("Request completed", extra={
             "operation": "request_completed",
             "method": request.method,
@@ -65,82 +63,9 @@ def log_response_info(response):
             "response_size": len(response.get_data()),
             "timestamp": datetime.utcnow().isoformat()
         })
-    
+
     return response
 
-@app.route('/api/data', methods=['POST'])
-def handle_post():
-    """
-    Handle POST requests to /api/data endpoint
-    Accepts string input and returns string output
-    """
-    start_time = time.time()
-    
-    logger.info("URL shortening request started", extra={
-        "operation": "handle_post",
-        "endpoint": "/api/data",
-        "method": "POST"
-    })
-    
-    try:
-        # Get the raw text data from request
-        if request.is_json:
-            # If JSON is sent, extract the string value
-            data = request.get_json()
-            if isinstance(data, dict) and 'text' in data:
-                input_string = data['text']
-            elif isinstance(data, str):
-                input_string = data
-            else:
-                logger.warning("Invalid JSON format received", extra={
-                    "operation": "handle_post",
-                    "error": "invalid_json_format",
-                    "received_data": str(data)[:200]  # Truncate long data
-                })
-                return "Error: Please send a string or {'text': 'your string'}", 400
-        else:
-            # If raw text is sent
-            input_string = request.get_data(as_text=True)
-        
-        # Validate that we have a string
-        if not input_string or not isinstance(input_string, str):
-            logger.warning("Invalid input received", extra={
-                "operation": "handle_post",
-                "error": "invalid_input",
-                "input_type": type(input_string).__name__,
-                "input_length": len(str(input_string)) if input_string else 0
-            })
-            return "Error: Please provide a valid string input", 400
-        
-        logger.info("Input validation successful", extra={
-            "operation": "handle_post",
-            "input_length": len(input_string),
-            "input_domain": input_string.split('/')[2] if len(input_string.split('/')) > 2 else "unknown"
-        })
-        
-        # Process the string using the shorten_url method
-        shortened_result = shorten_url(input_string)
-        
-        duration = (time.time() - start_time) * 1000
-        logger.info("URL shortening completed successfully", extra={
-            "operation": "handle_post",
-            "result": shortened_result,
-            "duration_ms": round(duration, 2),
-            "status": "success"
-        })
-        
-        return shortened_result, 200
-        
-    except Exception as e:
-        duration = (time.time() - start_time) * 1000
-        logger.error("URL shortening failed", extra={
-            "operation": "handle_post",
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "duration_ms": round(duration, 2),
-            "status": "error"
-        })
-        return f"Error: {str(e)}", 500
 
 @app.route("/api/auth/register", methods=["POST"])
 def auth_register():
@@ -190,82 +115,17 @@ def auth_me():
     return jsonify({"status": "success", "user": {"email": email}}), 200
 
 
-@app.route('/api/url/<short_code>', methods=['GET'])
-def get_url(short_code):
-    """
-    Handle GET requests to retrieve the long URL from a short code
-    """
-    start_time = time.time()
-    
-    logger.info("URL retrieval request started", extra={
-        "operation": "get_url",
-        "endpoint": f"/api/url/{short_code}",
-        "method": "GET",
-        "short_code": short_code
-    })
-    
-    try:
-        # Get the long URL using the short code
-        long_url = get_long_url(short_code)
-        
-        if long_url:
-            duration = (time.time() - start_time) * 1000
-            logger.info("URL retrieval completed successfully", extra={
-                "operation": "get_url",
-                "short_code": short_code,
-                "long_url_domain": long_url.split('/')[2] if len(long_url.split('/')) > 2 else "unknown",
-                "duration_ms": round(duration, 2),
-                "status": "success"
-            })
-            
-            return jsonify({
-                'short_code': short_code,
-                'long_url': long_url,
-                'status': 'success'
-            }), 200
-        else:
-            duration = (time.time() - start_time) * 1000
-            logger.warning("URL not found", extra={
-                "operation": "get_url",
-                "short_code": short_code,
-                "duration_ms": round(duration, 2),
-                "status": "not_found"
-            })
-            
-            return jsonify({
-                'short_code': short_code,
-                'error': 'Short code not found',
-                'status': 'error'
-            }), 404
-            
-    except Exception as e:
-        duration = (time.time() - start_time) * 1000
-        logger.error("URL retrieval failed", extra={
-            "operation": "get_url",
-            "short_code": short_code,
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "duration_ms": round(duration, 2),
-            "status": "error"
-        })
-        
-        return jsonify({
-            'short_code': short_code,
-            'error': str(e),
-            'status': 'error'
-        }), 500
-
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
     start_time = time.time()
-    
+
     logger.info("Health check request received", extra={
         "operation": "health_check",
         "endpoint": "/health",
         "method": "GET"
     })
-    
+
     try:
         # Basic health checks
         health_status = {
@@ -276,16 +136,16 @@ def health_check():
                 'timestamp': True
             }
         }
-        
+
         duration = (time.time() - start_time) * 1000
         logger.info("Health check completed", extra={
             "operation": "health_check",
             "status": "healthy",
             "duration_ms": round(duration, 2)
         })
-        
+
         return jsonify(health_status), 200
-        
+
     except Exception as e:
         duration = (time.time() - start_time) * 1000
         logger.error("Health check failed", extra={
@@ -294,7 +154,7 @@ def health_check():
             "duration_ms": round(duration, 2),
             "status": "unhealthy"
         })
-        
+
         return jsonify({
             'status': 'unhealthy',
             'error': str(e),
@@ -305,39 +165,36 @@ def health_check():
 def root():
     """Root endpoint with API information"""
     start_time = time.time()
-    
+
     logger.info("Root endpoint request received", extra={
         "operation": "root",
         "endpoint": "/",
         "method": "GET"
     })
-    
+
     try:
         api_info = {
-            'message': 'URL Shortener API',
+            'message': 'Portfolio Auth API',
             'version': '1.0.0',
             'endpoints': {
-                'POST /api/data': 'Create short URL from long URL',
-                'GET /api/url/<short_code>': 'Get long URL from short code',
                 'POST /api/auth/register': 'Register with email and password (password stored as hash)',
                 'POST /api/auth/login': 'Login; returns JWT bearer token',
                 'GET /api/auth/me': 'Current user from Authorization: Bearer <token>',
-                'GET /api/firestore-test': 'Test Firestore connection and write operations',
                 'GET /health': 'Health check endpoint',
                 'GET /': 'This information endpoint'
             },
             'timestamp': datetime.now().isoformat()
         }
-        
+
         duration = (time.time() - start_time) * 1000
         logger.info("Root endpoint completed", extra={
             "operation": "root",
             "duration_ms": round(duration, 2),
             "status": "success"
         })
-        
+
         return jsonify(api_info), 200
-        
+
     except Exception as e:
         duration = (time.time() - start_time) * 1000
         logger.error("Root endpoint failed", extra={
@@ -346,7 +203,7 @@ def root():
             "duration_ms": round(duration, 2),
             "status": "error"
         })
-        
+
         return jsonify({
             'error': 'Failed to retrieve API information',
             'timestamp': datetime.now().isoformat()
@@ -387,16 +244,16 @@ def internal_error(error):
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('FLASK_ENV') == 'development'
-    
+
     logger.info("Starting Flask server", extra={
         "operation": "server_start",
         "port": port,
         "debug_mode": debug,
         "environment": os.environ.get('FLASK_ENV', 'production')
     })
-    
+
     print(f"Starting Flask server on port {port}")
     print(f"Debug mode: {debug}")
-    print(f"API endpoint: http://localhost:{port}/api/data")
-    
+    print(f"Health: http://localhost:{port}/health")
+
     app.run(host='0.0.0.0', port=port, debug=debug)

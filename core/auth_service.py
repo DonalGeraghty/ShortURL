@@ -4,8 +4,10 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from services.firebase_service import create_user_record, get_user_record
+from services.firebase_service import create_user_record, get_user_record, initialize_firebase
 from services.logging_service import logger
+
+initialize_firebase()
 
 MIN_PASSWORD_LENGTH = 8
 JWT_ALGORITHM = "HS256"
