@@ -1,6 +1,7 @@
-Flask==2.3.3
-Flask-CORS==4.0.0
-python-dotenv==1.0.0
-firebase-admin==6.2.0
-google-cloud-firestore==2.11.1
-PyJWT==2.8.0
+# Janus Gate — Flask auth API (Firestore, JWT). Python 3.11+ recommended.
+Flask==3.1.0
+Flask-CORS==5.0.1
+python-dotenv==1.0.1
+firebase-admin==6.6.0
+google-cloud-firestore==2.19.0
+PyJWT==2.10.1
