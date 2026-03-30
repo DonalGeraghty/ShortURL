@@ -18,7 +18,8 @@ from core.auth_service import (
 from services.logging_service import get_flask_app_logger
 from services.firebase_service import (
     get_habits_map, merge_habits_map, patch_habit_cell,
-    get_custom_habits, update_custom_habits
+    get_custom_habits, update_custom_habits,
+    get_todos, add_todo_item, delete_todo_item
 )
 
 # Initialize logger
@@ -201,6 +202,58 @@ def user_habits_put():
     return jsonify({"status": "success", "habits": incoming}), 200
 
 
+@app.route("/api/user/todos", methods=["GET"])
+def user_todos_get():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    todos = get_todos(email)
+    return jsonify({"status": "success", "todos": todos}), 200
+
+
+@app.route("/api/user/todos", methods=["POST"])
+def user_todos_post():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    text = data.get("text")
+    ok, err, todos = add_todo_item(email, text)
+    if not ok:
+        code = 400
+        if err == "no_user":
+            code = 404
+        elif err == "too_many_todos":
+            code = 429
+        elif err == "write_failed":
+            code = 500
+        return jsonify({"status": "error", "error": err or "add_failed"}), code
+    return jsonify({"status": "success", "todos": todos}), 201
+
+
+@app.route("/api/user/todos", methods=["DELETE"])
+def user_todos_delete():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    todo_id = data.get("todoId") or data.get("id")
+    ok, err, todos = delete_todo_item(email, todo_id)
+    if not ok:
+        code = 400
+        if err == "no_user":
+            code = 404
+        elif err == "not_found":
+            code = 404
+        elif err == "write_failed":
+            code = 500
+        return jsonify({"status": "error", "error": err or "delete_failed"}), code
+    return jsonify({"status": "success", "todos": todos}), 200
+
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -270,6 +323,9 @@ def root():
                 'PUT /api/habits': 'Merge habit cells body { cells: { "YYYY-MM-DD_id": "done"|"fail"|"none" } }',
                 'PATCH /api/habits/cell': 'Set one cell { date, habitId, state }',
                 'GET /health': 'Health check endpoint',
+                'GET /api/user/todos': 'List your todos',
+                'POST /api/user/todos': 'Add todo item body { text }',
+                'DELETE /api/user/todos': 'Delete todo body { todoId }',
                 'GET /': 'This information endpoint'
             },
             'timestamp': datetime.now().isoformat()
