@@ -1,4 +1,5 @@
 import os
+import random
 import re
 import uuid
 from firebase_admin import credentials, firestore, initialize_app
@@ -21,6 +22,7 @@ auth_users_memory = {}
 habit_memory = {}
 custom_habits_memory = {}
 todo_memory = {}
+flashcards_memory = {}
 
 
 def initialize_firebase():
@@ -225,14 +227,14 @@ def _normalize_habits_dict(raw):
             continue
         if not _DATE_RE.match(date_str):
             continue
-        if v not in ("done", "fail"):
+        if v != "done":
             continue
         out[k] = v
     return out
 
 
 def get_habits_map(email):
-    """Return habit cell map keyed as YYYY-MM-DD_habitId -> done|fail."""
+    """Return habit cell map keyed as YYYY-MM-DD_habitId -> done."""
     email_key = _normalize_user_email(email)
     if not email_key:
         return {}
@@ -277,7 +279,7 @@ def _write_habits_map(email_key, habits_dict):
 
 def patch_habit_cell(email, date_str, habit_id, state):
     """
-    Set one cell: state is done | fail | none (none removes the key).
+    Set one cell: state is done | none (none removes the key).
     Returns (ok, error_code).
     """
     email_key = _normalize_user_email(email)
@@ -287,7 +289,7 @@ def patch_habit_cell(email, date_str, habit_id, state):
         return False, "invalid_habit"
     if not _DATE_RE.match(date_str or ""):
         return False, "invalid_date"
-    if state not in ("done", "fail", "none"):
+    if state not in ("done", "none"):
         return False, "invalid_state"
 
     cell_key = f"{date_str}_{habit_id}"
@@ -305,7 +307,7 @@ def patch_habit_cell(email, date_str, habit_id, state):
 def merge_habits_map(email, incoming):
     """
     Merge validated cells into stored habits (client keys win).
-    incoming: dict cell_key -> done|fail|none; none removes key.
+    incoming: dict cell_key -> done|none; none removes key.
     Returns (ok, error_code, merged_dict).
     """
     email_key = _normalize_user_email(email)
@@ -328,7 +330,7 @@ def merge_habits_map(email, incoming):
             continue
         if v == "none":
             habits.pop(k, None)
-        elif v in ("done", "fail"):
+        elif v == "done":
             habits[k] = v
 
     habits = _normalize_habits_dict(habits)
@@ -393,6 +395,10 @@ def update_custom_habits(email, habits_list):
 
 _TODO_TEXT_MAX_LEN = 240
 _TODO_MAX_ITEMS = 500
+_FLASHCARD_GROUP_NAME_MAX_LEN = 80
+_FLASHCARD_TEXT_MAX_LEN = 240
+_FLASHCARD_MAX_GROUPS = 200
+_FLASHCARD_MAX_CARDS_PER_GROUP = 1000
 
 
 def _normalize_todos_list(raw):
@@ -507,3 +513,213 @@ def delete_todo_item(email, todo_id):
     if _write_todos_list(email_key, next_todos):
         return True, None, next_todos
     return False, "write_failed", None
+
+
+def _normalize_flashcard_groups(raw):
+    """
+    Return validated flashcard groups list:
+    [{ id: str, name: str, cards: [{ id: str, front: str, back: str }] }, ...]
+    """
+    if not isinstance(raw, list):
+        return []
+
+    groups_out = []
+    seen_group_ids = set()
+    for group in raw:
+        if not isinstance(group, dict):
+            continue
+
+        group_id = group.get("id")
+        name = group.get("name")
+        if not isinstance(group_id, str) or not _TODO_ID_RE.match(group_id):
+            continue
+        if group_id in seen_group_ids:
+            continue
+        if not isinstance(name, str):
+            continue
+        name = name.strip()
+        if not name or len(name) > _FLASHCARD_GROUP_NAME_MAX_LEN:
+            continue
+
+        cards_raw = group.get("cards")
+        cards_out = []
+        seen_card_ids = set()
+        if isinstance(cards_raw, list):
+            for card in cards_raw:
+                if not isinstance(card, dict):
+                    continue
+                card_id = card.get("id")
+                front = card.get("front")
+                back = card.get("back")
+                if not isinstance(card_id, str) or not _TODO_ID_RE.match(card_id):
+                    continue
+                if card_id in seen_card_ids:
+                    continue
+                if not isinstance(front, str) or not isinstance(back, str):
+                    continue
+                front = front.strip()
+                back = back.strip()
+                if not front or not back:
+                    continue
+                if len(front) > _FLASHCARD_TEXT_MAX_LEN or len(back) > _FLASHCARD_TEXT_MAX_LEN:
+                    continue
+                cards_out.append({"id": card_id, "front": front, "back": back})
+                seen_card_ids.add(card_id)
+                if len(cards_out) >= _FLASHCARD_MAX_CARDS_PER_GROUP:
+                    break
+
+        groups_out.append({"id": group_id, "name": name, "cards": cards_out})
+        seen_group_ids.add(group_id)
+        if len(groups_out) >= _FLASHCARD_MAX_GROUPS:
+            break
+
+    return groups_out
+
+
+def get_flashcard_groups(email):
+    """Return user's flashcard groups."""
+    email_key = _normalize_user_email(email)
+    if not email_key:
+        return []
+
+    if users_collection_ref:
+        try:
+            doc = users_collection_ref.document(email_key).get()
+            if doc.exists:
+                data = doc.to_dict() or {}
+                groups = data.get("flashcards_v1")
+                return _normalize_flashcard_groups(groups)
+        except Exception as e:
+            logger.error("Firestore flashcards read failed", extra={
+                "operation": "get_flashcard_groups",
+                "error": str(e),
+            })
+
+    return _normalize_flashcard_groups(flashcards_memory.get(email_key, []))
+
+
+def _write_flashcard_groups(email_key, groups):
+    """Persist full flashcard groups list for user."""
+    if users_collection_ref:
+        try:
+            doc_ref = users_collection_ref.document(email_key)
+            if not doc_ref.get().exists:
+                return False
+            doc_ref.set({"flashcards_v1": groups}, merge=True)
+            return True
+        except Exception as e:
+            logger.error("Firestore flashcards write failed", extra={
+                "operation": "_write_flashcard_groups",
+                "error": str(e),
+            })
+            return False
+
+    if email_key not in auth_users_memory:
+        return False
+    flashcards_memory[email_key] = list(groups)
+    return True
+
+
+def update_flashcard_groups(email, groups):
+    """Replace user's flashcard groups. Returns (ok, error_code, groups)."""
+    email_key = _normalize_user_email(email)
+    if not email_key or not _user_exists(email_key):
+        return False, "no_user", None
+    if not isinstance(groups, list):
+        return False, "invalid_body", None
+
+    normalized = _normalize_flashcard_groups(groups)
+    if _write_flashcard_groups(email_key, normalized):
+        return True, None, normalized
+    return False, "write_failed", None
+
+
+def add_flashcard_group(email, name):
+    """Add a new flashcard group. Returns (ok, error_code, groups)."""
+    email_key = _normalize_user_email(email)
+    if not email_key or not _user_exists(email_key):
+        return False, "no_user", None
+    if not isinstance(name, str):
+        return False, "invalid_name", None
+    name = name.strip()
+    if not name or len(name) > _FLASHCARD_GROUP_NAME_MAX_LEN:
+        return False, "invalid_name", None
+
+    groups = get_flashcard_groups(email)
+    if len(groups) >= _FLASHCARD_MAX_GROUPS:
+        return False, "too_many_groups", None
+
+    groups.append({"id": uuid.uuid4().hex, "name": name, "cards": []})
+    if _write_flashcard_groups(email_key, groups):
+        return True, None, groups
+    return False, "write_failed", None
+
+
+def add_flashcard_to_group(email, group_id, front, back):
+    """Add a card to a group. Returns (ok, error_code, groups)."""
+    email_key = _normalize_user_email(email)
+    if not email_key or not _user_exists(email_key):
+        return False, "no_user", None
+    if not isinstance(group_id, str) or not _TODO_ID_RE.match(group_id):
+        return False, "invalid_group_id", None
+    if not isinstance(front, str) or not isinstance(back, str):
+        return False, "invalid_card_text", None
+
+    front = front.strip()
+    back = back.strip()
+    if not front or not back:
+        return False, "invalid_card_text", None
+    if len(front) > _FLASHCARD_TEXT_MAX_LEN or len(back) > _FLASHCARD_TEXT_MAX_LEN:
+        return False, "invalid_card_text", None
+
+    groups = get_flashcard_groups(email)
+    target_group = None
+    for group in groups:
+        if group.get("id") == group_id:
+            target_group = group
+            break
+
+    if target_group is None:
+        return False, "group_not_found", None
+    if len(target_group.get("cards", [])) >= _FLASHCARD_MAX_CARDS_PER_GROUP:
+        return False, "too_many_cards", None
+
+    target_group["cards"].append({
+        "id": uuid.uuid4().hex,
+        "front": front,
+        "back": back,
+    })
+
+    normalized = _normalize_flashcard_groups(groups)
+    if _write_flashcard_groups(email_key, normalized):
+        return True, None, normalized
+    return False, "write_failed", None
+
+
+def get_random_flashcards(email, group_id=None):
+    """
+    Return a randomized flashcard list, optionally scoped to one group.
+    Each card also includes group metadata for UI rendering.
+    """
+    groups = get_flashcard_groups(email)
+    if isinstance(group_id, str) and group_id.strip():
+        group_id = group_id.strip()
+        groups = [g for g in groups if g.get("id") == group_id]
+        if not groups:
+            return False, "group_not_found", None
+
+    cards = []
+    for group in groups:
+        g_id = group.get("id")
+        g_name = group.get("name")
+        for card in group.get("cards", []):
+            cards.append({
+                "id": card.get("id"),
+                "front": card.get("front"),
+                "back": card.get("back"),
+                "groupId": g_id,
+                "groupName": g_name,
+            })
+
+    random.shuffle(cards)
+    return True, None, cards

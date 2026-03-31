@@ -19,7 +19,10 @@ from services.logging_service import get_flask_app_logger
 from services.firebase_service import (
     get_habits_map, merge_habits_map, patch_habit_cell,
     get_custom_habits, update_custom_habits,
-    get_todos, add_todo_item, delete_todo_item
+    get_todos, add_todo_item, delete_todo_item,
+    get_flashcard_groups, update_flashcard_groups,
+    add_flashcard_group, add_flashcard_to_group,
+    get_random_flashcards
 )
 
 # Initialize logger
@@ -254,6 +257,95 @@ def user_todos_delete():
     return jsonify({"status": "success", "todos": todos}), 200
 
 
+@app.route("/api/user/flashcards", methods=["GET"])
+def user_flashcards_get():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    groups = get_flashcard_groups(email)
+    return jsonify({"status": "success", "groups": groups}), 200
+
+
+@app.route("/api/user/flashcards", methods=["PUT"])
+def user_flashcards_put():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    incoming = data.get("groups")
+    if not isinstance(incoming, list):
+        return jsonify({"status": "error", "error": "invalid_body"}), 400
+    ok, err, groups = update_flashcard_groups(email, incoming)
+    if not ok:
+        code = 400
+        if err == "no_user":
+            code = 404
+        elif err == "write_failed":
+            code = 500
+        return jsonify({"status": "error", "error": err or "update_failed"}), code
+    return jsonify({"status": "success", "groups": groups}), 200
+
+
+@app.route("/api/user/flashcards/groups", methods=["POST"])
+def user_flashcards_groups_post():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    name = data.get("name")
+    ok, err, groups = add_flashcard_group(email, name)
+    if not ok:
+        code = 400
+        if err == "no_user":
+            code = 404
+        elif err == "write_failed":
+            code = 500
+        return jsonify({"status": "error", "error": err or "add_group_failed"}), code
+    return jsonify({"status": "success", "groups": groups}), 201
+
+
+@app.route("/api/user/flashcards/cards", methods=["POST"])
+def user_flashcards_cards_post():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    group_id = data.get("groupId")
+    front = data.get("front")
+    back = data.get("back")
+    ok, err, groups = add_flashcard_to_group(email, group_id, front, back)
+    if not ok:
+        code = 400
+        if err == "no_user":
+            code = 404
+        elif err == "group_not_found":
+            code = 404
+        elif err == "write_failed":
+            code = 500
+        return jsonify({"status": "error", "error": err or "add_card_failed"}), code
+    return jsonify({"status": "success", "groups": groups}), 201
+
+
+@app.route("/api/user/flashcards/study", methods=["GET"])
+def user_flashcards_study_get():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    group_id = request.args.get("groupId")
+    ok, err, cards = get_random_flashcards(email, group_id)
+    if not ok:
+        code = 400
+        if err == "group_not_found":
+            code = 404
+        return jsonify({"status": "error", "error": err or "study_failed"}), code
+    return jsonify({"status": "success", "cards": cards}), 200
+
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -320,12 +412,17 @@ def root():
                 'POST /api/auth/login': 'Login; returns JWT bearer token',
                 'GET /api/auth/me': 'Current user from Authorization: Bearer <token>',
                 'GET /api/habits': 'Habit tracker cells for current user (JSON map)',
-                'PUT /api/habits': 'Merge habit cells body { cells: { "YYYY-MM-DD_id": "done"|"fail"|"none" } }',
+                'PUT /api/habits': 'Merge habit cells body { cells: { "YYYY-MM-DD_id": "done"|"none" } }',
                 'PATCH /api/habits/cell': 'Set one cell { date, habitId, state }',
                 'GET /health': 'Health check endpoint',
                 'GET /api/user/todos': 'List your todos',
                 'POST /api/user/todos': 'Add todo item body { text }',
                 'DELETE /api/user/todos': 'Delete todo body { todoId }',
+                'GET /api/user/flashcards': 'List flashcard groups and cards',
+                'PUT /api/user/flashcards': 'Replace all flashcard groups body { groups: [...] }',
+                'POST /api/user/flashcards/groups': 'Add a flashcard group body { name }',
+                'POST /api/user/flashcards/cards': 'Add a card body { groupId, front, back }',
+                'GET /api/user/flashcards/study': 'Get randomized cards (optional ?groupId=...)',
                 'GET /': 'This information endpoint'
             },
             'timestamp': datetime.now().isoformat()
