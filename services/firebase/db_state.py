@@ -1,0 +1,17 @@
+import re
+
+# Shared regex validators
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+CELL_KEY_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})_(.+)$")
+TODO_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
+
+# Global database handles
+db = None
+users_collection_ref = None
+
+# In-memory fallback stores
+auth_users_memory = {}
+habit_memory = {}
+custom_habits_memory = {}
+todo_memory = {}
+flashcards_memory = {}
