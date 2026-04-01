@@ -399,6 +399,8 @@ _FLASHCARD_GROUP_NAME_MAX_LEN = 80
 _FLASHCARD_TEXT_MAX_LEN = 240
 _FLASHCARD_MAX_GROUPS = 200
 _FLASHCARD_MAX_CARDS_PER_GROUP = 1000
+_NUTRITION_MAX_DAYS = 400
+_STOIC_TEXT_MAX_LEN = 1200
 
 
 def _normalize_todos_list(raw):
@@ -723,3 +725,173 @@ def get_random_flashcards(email, group_id=None):
 
     random.shuffle(cards)
     return True, None, cards
+
+
+def _normalize_nutrition_history(raw):
+    """
+    Validate daily nutrition history map:
+    {
+      "YYYY-MM-DD": { "calories"?: int, "weight"?: float, "waterMl"?: int },
+      ...
+    }
+    """
+    if not isinstance(raw, dict):
+        return {}
+
+    out = {}
+    for date_key, row in raw.items():
+        if not isinstance(date_key, str) or not _DATE_RE.match(date_key):
+            continue
+        if not isinstance(row, dict):
+            continue
+
+        next_row = {}
+        calories = row.get("calories")
+        if isinstance(calories, int) and calories >= 0:
+            next_row["calories"] = calories
+
+        weight = row.get("weight")
+        if isinstance(weight, (int, float)) and float(weight) > 0:
+            next_row["weight"] = round(float(weight), 1)
+
+        water_ml = row.get("waterMl")
+        if isinstance(water_ml, int) and water_ml >= 0:
+            next_row["waterMl"] = water_ml
+
+        if next_row:
+            out[date_key] = next_row
+        if len(out) >= _NUTRITION_MAX_DAYS:
+            break
+
+    return out
+
+
+def get_nutrition_history(email):
+    """Return nutrition history map for user."""
+    email_key = _normalize_user_email(email)
+    if not email_key:
+        return {}
+
+    if users_collection_ref:
+        try:
+            doc = users_collection_ref.document(email_key).get()
+            if doc.exists:
+                data = doc.to_dict() or {}
+                return _normalize_nutrition_history(data.get("nutrition_v1"))
+        except Exception as e:
+            logger.error("Firestore nutrition read failed", extra={
+                "operation": "get_nutrition_history",
+                "error": str(e),
+            })
+
+    row = auth_users_memory.get(email_key, {})
+    return _normalize_nutrition_history(row.get("nutrition_v1"))
+
+
+def update_nutrition_history(email, history):
+    """Replace nutrition history map. Returns (ok, error_code, history)."""
+    email_key = _normalize_user_email(email)
+    if not email_key or not _user_exists(email_key):
+        return False, "no_user", None
+    if not isinstance(history, dict):
+        return False, "invalid_body", None
+
+    normalized = _normalize_nutrition_history(history)
+    if users_collection_ref:
+        try:
+            doc_ref = users_collection_ref.document(email_key)
+            if not doc_ref.get().exists:
+                return False, "no_user", None
+            doc_ref.set({"nutrition_v1": normalized}, merge=True)
+            return True, None, normalized
+        except Exception as e:
+            logger.error("Firestore nutrition write failed", extra={
+                "operation": "update_nutrition_history",
+                "error": str(e),
+            })
+            return False, "write_failed", None
+
+    if email_key not in auth_users_memory:
+        return False, "no_user", None
+    auth_users_memory[email_key]["nutrition_v1"] = dict(normalized)
+    return True, None, normalized
+
+
+def _normalize_stoic_form(raw):
+    if not isinstance(raw, dict):
+        raw = {}
+    out = {}
+    for k in (
+        "morningFocus",
+        "likelyChallenge",
+        "virtueToPractice",
+        "eveningWin",
+        "eveningImprove",
+        "nextAction",
+    ):
+        v = raw.get(k)
+        if isinstance(v, str):
+            out[k] = v.strip()[:_STOIC_TEXT_MAX_LEN]
+        else:
+            out[k] = ""
+    return out
+
+
+def get_stoic_journal(email):
+    """Return stoic journal payload { date, form }."""
+    email_key = _normalize_user_email(email)
+    if not email_key:
+        return {"date": "", "form": _normalize_stoic_form({})}
+
+    payload = None
+    if users_collection_ref:
+        try:
+            doc = users_collection_ref.document(email_key).get()
+            if doc.exists:
+                data = doc.to_dict() or {}
+                payload = data.get("stoic_v1")
+        except Exception as e:
+            logger.error("Firestore stoic read failed", extra={
+                "operation": "get_stoic_journal",
+                "error": str(e),
+            })
+    if payload is None:
+        payload = auth_users_memory.get(email_key, {}).get("stoic_v1")
+
+    if not isinstance(payload, dict):
+        return {"date": "", "form": _normalize_stoic_form({})}
+
+    date_key = payload.get("date")
+    if not isinstance(date_key, str) or not _DATE_RE.match(date_key):
+        date_key = ""
+    form = _normalize_stoic_form(payload.get("form"))
+    return {"date": date_key, "form": form}
+
+
+def update_stoic_journal(email, date_key, form):
+    """Replace today's stoic journal payload. Returns (ok, error, payload)."""
+    email_key = _normalize_user_email(email)
+    if not email_key or not _user_exists(email_key):
+        return False, "no_user", None
+    if not isinstance(date_key, str) or not _DATE_RE.match(date_key):
+        return False, "invalid_date", None
+
+    payload = {"date": date_key, "form": _normalize_stoic_form(form)}
+    if users_collection_ref:
+        try:
+            doc_ref = users_collection_ref.document(email_key)
+            if not doc_ref.get().exists:
+                return False, "no_user", None
+            doc_ref.set({"stoic_v1": payload}, merge=True)
+            return True, None, payload
+        except Exception as e:
+            logger.error("Firestore stoic write failed", extra={
+                "operation": "update_stoic_journal",
+                "error": str(e),
+            })
+            return False, "write_failed", None
+
+    if email_key not in auth_users_memory:
+        return False, "no_user", None
+    auth_users_memory[email_key]["stoic_v1"] = dict(payload)
+    return True, None, payload

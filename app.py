@@ -22,7 +22,9 @@ from services.firebase_service import (
     get_todos, add_todo_item, delete_todo_item,
     get_flashcard_groups, update_flashcard_groups,
     add_flashcard_group, add_flashcard_to_group,
-    get_random_flashcards
+    get_random_flashcards,
+    get_nutrition_history, update_nutrition_history,
+    get_stoic_journal, update_stoic_journal,
 )
 
 # Initialize logger
@@ -346,6 +348,67 @@ def user_flashcards_study_get():
     return jsonify({"status": "success", "cards": cards}), 200
 
 
+@app.route("/api/user/nutrition", methods=["GET"])
+def user_nutrition_get():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    history = get_nutrition_history(email)
+    return jsonify({"status": "success", "history": history}), 200
+
+
+@app.route("/api/user/nutrition", methods=["PUT"])
+def user_nutrition_put():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    incoming = data.get("history")
+    if not isinstance(incoming, dict):
+        return jsonify({"status": "error", "error": "invalid_body"}), 400
+    ok, err, history = update_nutrition_history(email, incoming)
+    if not ok:
+        code = 400
+        if err == "no_user":
+            code = 404
+        elif err == "write_failed":
+            code = 500
+        return jsonify({"status": "error", "error": err or "update_failed"}), code
+    return jsonify({"status": "success", "history": history}), 200
+
+
+@app.route("/api/user/stoic", methods=["GET"])
+def user_stoic_get():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    payload = get_stoic_journal(email)
+    return jsonify({"status": "success", "entry": payload}), 200
+
+
+@app.route("/api/user/stoic", methods=["PUT"])
+def user_stoic_put():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    date_key = data.get("date")
+    form = data.get("form")
+    ok, err, payload = update_stoic_journal(email, date_key, form)
+    if not ok:
+        code = 400
+        if err == "no_user":
+            code = 404
+        elif err == "write_failed":
+            code = 500
+        return jsonify({"status": "error", "error": err or "update_failed"}), code
+    return jsonify({"status": "success", "entry": payload}), 200
+
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -423,6 +486,10 @@ def root():
                 'POST /api/user/flashcards/groups': 'Add a flashcard group body { name }',
                 'POST /api/user/flashcards/cards': 'Add a card body { groupId, front, back }',
                 'GET /api/user/flashcards/study': 'Get randomized cards (optional ?groupId=...)',
+                'GET /api/user/nutrition': 'Get calorie/weight/water history map',
+                'PUT /api/user/nutrition': 'Replace calorie/weight/water history body { history }',
+                'GET /api/user/stoic': 'Get current stoic journal entry',
+                'PUT /api/user/stoic': 'Replace stoic journal entry body { date, form }',
                 'GET /': 'This information endpoint'
             },
             'timestamp': datetime.now().isoformat()
