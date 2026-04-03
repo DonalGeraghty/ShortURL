@@ -4,6 +4,28 @@ from . import db_state
 from .core import normalize_user_email, user_exists
 from ..logging_service import logger
 
+HABIT_LABEL_MAX_LEN = 120
+HABIT_CATEGORY_MAX_LEN = 64
+
+
+def _normalize_custom_habit(h):
+    """Return {id, label, category} only; extra fields (e.g. legacy description) are dropped."""
+    if not isinstance(h, dict):
+        return None
+    hid = h.get("id")
+    if not isinstance(hid, str) or not re.match(r"^[a-zA-Z0-9_\-]+$", hid):
+        return None
+    label = h.get("label")
+    if not isinstance(label, str) or not label.strip():
+        return None
+    label = label.strip()[:HABIT_LABEL_MAX_LEN]
+    category = h.get("category")
+    if not isinstance(category, str) or not category.strip():
+        category = "other"
+    else:
+        category = category.strip()[:HABIT_CATEGORY_MAX_LEN]
+    return {"id": hid, "label": label, "category": category}
+
 
 def _normalize_habits_dict(raw):
     if not isinstance(raw, dict):
@@ -125,48 +147,62 @@ def get_custom_habits(email):
     email_key = normalize_user_email(email)
     if not email_key:
         return []
+    raw = []
     if db_state.users_collection_ref:
         try:
             doc = db_state.users_collection_ref.document(email_key).get()
             if doc.exists:
                 data = doc.to_dict() or {}
                 h = data.get("custom_habits_v1")
-                return h if isinstance(h, list) else []
+                raw = h if isinstance(h, list) else []
         except Exception as e:
             logger.error("Firestore custom habits read failed", extra={
                 "operation": "get_custom_habits",
                 "error": str(e),
             })
-    return list(db_state.custom_habits_memory.get(email_key, []))
+            raw = []
+    else:
+        raw = list(db_state.custom_habits_memory.get(email_key, []))
+
+    out = []
+    for item in raw:
+        n = _normalize_custom_habit(item)
+        if n:
+            out.append(n)
+    return out
 
 
 def update_custom_habits(email, habits_list):
     email_key = normalize_user_email(email)
     if not email_key or not user_exists(email_key):
-        return False, "no_user"
+        return False, "no_user", None
     if not isinstance(habits_list, list):
-        return False, "invalid_body"
+        return False, "invalid_body", None
 
     valid_habits = []
     for h in habits_list:
-        if isinstance(h, dict) and "id" in h and re.match(r"^[a-zA-Z0-9_\-]+$", str(h["id"])):
-            valid_habits.append(h)
+        if not isinstance(h, dict):
+            return False, "invalid_body", None
+        n = _normalize_custom_habit(h)
+        if n is None:
+            return False, "invalid_habit", None
+        valid_habits.append(n)
 
     if db_state.users_collection_ref:
         try:
             doc_ref = db_state.users_collection_ref.document(email_key)
             if not doc_ref.get().exists:
-                return False, "no_user"
+                return False, "no_user", None
             doc_ref.set({"custom_habits_v1": valid_habits}, merge=True)
-            return True, None
+            return True, None, valid_habits
         except Exception as e:
             logger.error("Firestore custom habits write failed", extra={
                 "operation": "update_custom_habits",
                 "error": str(e),
             })
-            return False, "write_failed"
+            return False, "write_failed", None
 
     if email_key not in db_state.auth_users_memory:
-        return False, "no_user"
+        return False, "no_user", None
     db_state.custom_habits_memory[email_key] = list(valid_habits)
-    return True, None
+    return True, None, valid_habits

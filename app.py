@@ -204,13 +204,15 @@ def user_habits_put():
     incoming = data.get("habits")
     if not isinstance(incoming, list):
         return jsonify({"status": "error", "error": "invalid_body"}), 400
-    ok, err = update_custom_habits(email, incoming)
+    ok, err, habits = update_custom_habits(email, incoming)
     if not ok:
         code = 400
         if err == "no_user":
             code = 404
+        elif err == "write_failed":
+            code = 500
         return jsonify({"status": "error", "error": err or "update_failed"}), code
-    return jsonify({"status": "success", "habits": incoming}), 200
+    return jsonify({"status": "success", "habits": habits}), 200
 
 
 @app.route("/api/user/todos", methods=["GET"])
