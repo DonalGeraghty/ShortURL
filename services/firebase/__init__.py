@@ -7,6 +7,12 @@ from .habits import (
     get_custom_habits,
     update_custom_habits,
 )
+from .habit_categories import (
+    get_habit_categories,
+    add_habit_category,
+    update_habit_category,
+    delete_habit_category,
+)
 from .todos import get_todos, add_todo_item, delete_todo_item
 from .flashcards import (
     get_flashcard_groups,

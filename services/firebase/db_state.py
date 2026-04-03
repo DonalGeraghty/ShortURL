@@ -13,6 +13,7 @@ users_collection_ref = None
 auth_users_memory = {}
 habit_memory = {}
 custom_habits_memory = {}
+habit_categories_memory = {}
 todo_memory = {}
 flashcards_memory = {}
 day_planner_options_memory = {}

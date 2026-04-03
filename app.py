@@ -19,6 +19,10 @@ from services.logging_service import get_flask_app_logger
 from services.firebase_service import (
     get_habits_map, merge_habits_map, patch_habit_cell,
     get_custom_habits, update_custom_habits,
+    get_habit_categories,
+    add_habit_category,
+    update_habit_category,
+    delete_habit_category,
     get_todos, add_todo_item, delete_todo_item,
     get_flashcard_groups, update_flashcard_groups,
     add_flashcard_group, add_flashcard_to_group,
@@ -213,6 +217,81 @@ def user_habits_put():
             code = 500
         return jsonify({"status": "error", "error": err or "update_failed"}), code
     return jsonify({"status": "success", "habits": habits}), 200
+
+
+@app.route("/api/user/habit-categories", methods=["GET"])
+def user_habit_categories_get():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    categories = get_habit_categories(email)
+    return jsonify({"status": "success", "categories": categories}), 200
+
+
+@app.route("/api/user/habit-categories", methods=["POST"])
+def user_habit_categories_post():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    label = data.get("label")
+    ok, err, categories = add_habit_category(email, label)
+    if not ok:
+        code = 400
+        if err == "no_user":
+            code = 404
+        elif err == "write_failed":
+            code = 500
+        return jsonify({"status": "error", "error": err or "add_failed"}), code
+    return jsonify({"status": "success", "categories": categories}), 200
+
+
+@app.route("/api/user/habit-categories", methods=["PATCH"])
+def user_habit_categories_patch():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    category_id = data.get("id")
+    label = data.get("label")
+    ok, err, categories = update_habit_category(email, category_id, label)
+    if not ok:
+        code = 400
+        if err == "no_user":
+            code = 404
+        elif err == "not_found":
+            code = 404
+        elif err == "write_failed":
+            code = 500
+        return jsonify({"status": "error", "error": err or "update_failed"}), code
+    return jsonify({"status": "success", "categories": categories}), 200
+
+
+@app.route("/api/user/habit-categories", methods=["DELETE"])
+def user_habit_categories_delete():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    category_id = data.get("id")
+    reassign_to = data.get("reassignTo")
+    ok, err, categories = delete_habit_category(email, category_id, reassign_to)
+    if not ok:
+        code = 400
+        if err == "no_user":
+            code = 404
+        elif err == "not_found":
+            code = 404
+        elif err == "category_in_use":
+            code = 409
+        elif err == "write_failed":
+            code = 500
+        return jsonify({"status": "error", "error": err or "delete_failed"}), code
+    return jsonify({"status": "success", "categories": categories}), 200
 
 
 @app.route("/api/user/todos", methods=["GET"])
@@ -587,6 +666,12 @@ def root():
                 'GET /api/habits': 'Habit tracker cells for current user (JSON map)',
                 'PUT /api/habits': 'Merge habit cells body { cells: { "YYYY-MM-DD_id": "done"|"none" } }',
                 'PATCH /api/habits/cell': 'Set one cell { date, habitId, state }',
+                'GET /api/user/habits': 'List habit definitions { id, label, category }',
+                'PUT /api/user/habits': 'Replace habits body { habits: [...] }; category must exist',
+                'GET /api/user/habit-categories': 'List habit categories { id, label }',
+                'POST /api/user/habit-categories': 'Add category body { label }',
+                'PATCH /api/user/habit-categories': 'Rename category body { id, label }',
+                'DELETE /api/user/habit-categories': 'Delete category body { id, reassignTo? }',
                 'GET /health': 'Health check endpoint',
                 'GET /api/user/todos': 'List your todos',
                 'POST /api/user/todos': 'Add todo item body { text }',
