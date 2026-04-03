@@ -25,6 +25,12 @@ from services.firebase_service import (
     get_random_flashcards,
     get_nutrition_history, update_nutrition_history,
     get_stoic_journal, update_stoic_journal,
+    get_day_planner_options,
+    add_day_planner_option,
+    update_day_planner_option,
+    delete_day_planner_option,
+    get_day_planner_daily,
+    update_day_planner_daily,
 )
 
 # Initialize logger
@@ -409,6 +415,108 @@ def user_stoic_put():
     return jsonify({"status": "success", "entry": payload}), 200
 
 
+@app.route("/api/user/day-planner/options", methods=["GET"])
+def user_day_planner_options_get():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    options = get_day_planner_options(email)
+    return jsonify({"status": "success", "options": options}), 200
+
+
+@app.route("/api/user/day-planner/options", methods=["POST"])
+def user_day_planner_options_post():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    label = data.get("label")
+    ok, err, options = add_day_planner_option(email, label)
+    if not ok:
+        code = 400
+        if err == "no_user":
+            code = 404
+        elif err == "write_failed":
+            code = 500
+        return jsonify({"status": "error", "error": err or "add_failed"}), code
+    return jsonify({"status": "success", "options": options}), 200
+
+
+@app.route("/api/user/day-planner/options", methods=["PATCH"])
+def user_day_planner_options_patch():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    option_id = data.get("id")
+    label = data.get("label")
+    ok, err, options = update_day_planner_option(email, option_id, label)
+    if not ok:
+        code = 400
+        if err == "no_user":
+            code = 404
+        elif err == "not_found":
+            code = 404
+        elif err == "write_failed":
+            code = 500
+        return jsonify({"status": "error", "error": err or "update_failed"}), code
+    return jsonify({"status": "success", "options": options}), 200
+
+
+@app.route("/api/user/day-planner/options", methods=["DELETE"])
+def user_day_planner_options_delete():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    option_id = data.get("id")
+    ok, err, options = delete_day_planner_option(email, option_id)
+    if not ok:
+        code = 400
+        if err == "no_user":
+            code = 404
+        elif err == "not_found":
+            code = 404
+        elif err == "write_failed":
+            code = 500
+        return jsonify({"status": "error", "error": err or "delete_failed"}), code
+    return jsonify({"status": "success", "options": options}), 200
+
+
+@app.route("/api/user/day-planner/daily", methods=["GET"])
+def user_day_planner_daily_get():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    entry = get_day_planner_daily(email)
+    return jsonify({"status": "success", "entry": entry}), 200
+
+
+@app.route("/api/user/day-planner/daily", methods=["PUT"])
+def user_day_planner_daily_put():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    date_key = data.get("date")
+    slots = data.get("slots")
+    ok, err, payload = update_day_planner_daily(email, date_key, slots)
+    if not ok:
+        code = 400
+        if err == "no_user":
+            code = 404
+        elif err == "write_failed":
+            code = 500
+        return jsonify({"status": "error", "error": err or "update_failed"}), code
+    return jsonify({"status": "success", "entry": payload}), 200
+
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -490,6 +598,12 @@ def root():
                 'PUT /api/user/nutrition': 'Replace calorie/weight/water history body { history }',
                 'GET /api/user/stoic': 'Get current stoic journal entry',
                 'PUT /api/user/stoic': 'Replace stoic journal entry body { date, form }',
+                'GET /api/user/day-planner/options': 'List day planner dropdown options',
+                'POST /api/user/day-planner/options': 'Add option body { label }',
+                'PATCH /api/user/day-planner/options': 'Edit option body { id, label }',
+                'DELETE /api/user/day-planner/options': 'Delete option body { id }',
+                'GET /api/user/day-planner/daily': 'Get today slot selections { date, slots }',
+                'PUT /api/user/day-planner/daily': 'Save slots body { date, slots: { "0": optionId, ... } }',
                 'GET /': 'This information endpoint'
             },
             'timestamp': datetime.now().isoformat()

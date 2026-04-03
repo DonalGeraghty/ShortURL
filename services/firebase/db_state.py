@@ -15,3 +15,5 @@ habit_memory = {}
 custom_habits_memory = {}
 todo_memory = {}
 flashcards_memory = {}
+day_planner_options_memory = {}
+day_planner_daily_memory = {}
