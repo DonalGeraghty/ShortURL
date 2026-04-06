@@ -26,12 +26,8 @@ MEAL_PLAN_SECTIONS = [
         "options": [
             {
                 "id": "breakfast_smoked_salmon_avocado_or_cream_cheese",
-                "label": "60g smoked salmon with either a small avocado or cream cheese.",
-            },
-            {
-                "id": "breakfast_85g_cream_cheese_or_nuts_or_seeds",
-                "label": "85g cream cheese, or 85g nuts/seeds.",
-            },
+                "label": "60g smoked salmon with a small avocado and or 25g nuts/seeds.",
+            }
         ],
     },
     {
@@ -40,7 +36,7 @@ MEAL_PLAN_SECTIONS = [
         "options": [
             {
                 "id": "lunch_green_salad_salmon_or_beef_with_fat_option",
-                "label": "Green salad with 100g salmon or beef, with either 85g nuts, 1 avocado, or 100g cream cheese.",
+                "label": "Green salad with 100g beef with 100g cream cheese.",
             },
         ],
     },
@@ -50,7 +46,7 @@ MEAL_PLAN_SECTIONS = [
         "options": [
             {
                 "id": "dinner_200g_protein_salad_cooked_greens_olive_oil",
-                "label": "200g beef, lamb, pork, or salmon with a green salad and a small portion of cooked green vegetables with olive oil.",
+                "label": "200g beef with a green salad and a small portion of cooked green vegetables with olive oil.",
             },
         ],
     },
