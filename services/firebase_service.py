@@ -38,4 +38,7 @@ from .firebase import (
     delete_day_planner_option,
     get_day_planner_daily,
     update_day_planner_daily,
+    get_meal_plan_sections,
+    get_meal_plan_daily,
+    update_meal_plan_daily,
 )

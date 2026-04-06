@@ -35,6 +35,9 @@ from services.firebase_service import (
     delete_day_planner_option,
     get_day_planner_daily,
     update_day_planner_daily,
+    get_meal_plan_sections,
+    get_meal_plan_daily,
+    update_meal_plan_daily,
 )
 
 # Initialize logger
@@ -598,6 +601,38 @@ def user_day_planner_daily_put():
     return jsonify({"status": "success", "entry": payload}), 200
 
 
+@app.route("/api/user/meal-plan", methods=["GET"])
+def user_meal_plan_get():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    sections = get_meal_plan_sections()
+    entry = get_meal_plan_daily(email)
+    return jsonify({"status": "success", "sections": sections, "entry": entry}), 200
+
+
+@app.route("/api/user/meal-plan", methods=["PUT"])
+def user_meal_plan_put():
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+    data = request.get_json(silent=True) or {}
+    date_key = data.get("date")
+    selections = data.get("selections")
+    completed = data.get("completed")
+    ok, err, payload = update_meal_plan_daily(email, date_key, selections, completed)
+    if not ok:
+        code = 400
+        if err == "no_user":
+            code = 404
+        elif err == "write_failed":
+            code = 500
+        return jsonify({"status": "error", "error": err or "update_failed"}), code
+    return jsonify({"status": "success", "entry": payload}), 200
+
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -691,6 +726,8 @@ def root():
                 'DELETE /api/user/day-planner/options': 'Delete option body { id }',
                 'GET /api/user/day-planner/daily': 'Get today slot selections { date, slots }',
                 'PUT /api/user/day-planner/daily': 'Save slots body { date, slots: { "0": optionId, ... } }',
+                'GET /api/user/meal-plan': 'Get trainer meal sections and today selection/completion entry',
+                'PUT /api/user/meal-plan': 'Save today meal entry body { date, selections, completed }',
                 'GET /': 'This information endpoint'
             },
             'timestamp': datetime.now().isoformat()

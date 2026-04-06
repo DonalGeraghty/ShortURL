@@ -31,3 +31,8 @@ from .day_planner import (
     get_day_planner_daily,
     update_day_planner_daily,
 )
+from .meal_plan import (
+    get_meal_plan_sections,
+    get_meal_plan_daily,
+    update_meal_plan_daily,
+)
