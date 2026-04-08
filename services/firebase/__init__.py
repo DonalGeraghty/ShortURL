@@ -1,5 +1,5 @@
 from .core import initialize_firebase, get_database_status
-from .users import create_user_record, get_user_record
+from .users import create_user_record, get_user_record, delete_user_account
 from .habits import (
     get_habits_map,
     merge_habits_map,

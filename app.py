@@ -14,10 +14,13 @@ from core.auth_service import (
     decode_access_token,
     login_user,
     register_user,
+    verify_password,
 )
 from services.logging_service import get_flask_app_logger
 from services.firebase_service import (
     get_habits_map, merge_habits_map, patch_habit_cell,
+    get_user_record,
+    delete_user_account,
     get_custom_habits, update_custom_habits,
     get_habit_categories,
     add_habit_category,
@@ -138,6 +141,34 @@ def auth_me():
     if not email:
         return jsonify({"status": "error", "error": "Unauthorized"}), 401
     return jsonify({"status": "success", "user": {"email": email}}), 200
+
+
+@app.route("/api/auth/account", methods=["DELETE"])
+def auth_delete_account():
+    """Delete the authenticated user after password confirmation."""
+    token = _bearer_token()
+    email = decode_access_token(token)
+    if not email:
+        return jsonify({"status": "error", "error": "Unauthorized"}), 401
+
+    data = request.get_json(silent=True) or {}
+    password = data.get("password")
+    if not password:
+        return jsonify({"status": "error", "error": "Password is required"}), 400
+
+    row = get_user_record(email)
+    if not row or not verify_password(password, row.get("password_hash")):
+        return jsonify({"status": "error", "error": "Invalid password"}), 401
+
+    ok, err = delete_user_account(email)
+    if not ok:
+        return jsonify({"status": "error", "error": err or "Could not delete account"}), 500
+
+    logger.info("Account deleted via API", extra={
+        "operation": "auth_delete_account",
+        "email": email,
+    })
+    return jsonify({"status": "success"}), 200
 
 
 @app.route("/api/habits", methods=["GET"])
@@ -698,6 +729,7 @@ def root():
                 'POST /api/auth/register': 'Register with email and password (password stored as hash)',
                 'POST /api/auth/login': 'Login; returns JWT bearer token',
                 'GET /api/auth/me': 'Current user from Authorization: Bearer <token>',
+                'DELETE /api/auth/account': 'Delete account; JSON body { password } required',
                 'GET /api/habits': 'Habit tracker cells for current user (JSON map)',
                 'PUT /api/habits': 'Merge habit cells body { cells: { "YYYY-MM-DD_id": "done"|"none" } }',
                 'PATCH /api/habits/cell': 'Set one cell { date, habitId, state }',

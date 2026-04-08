@@ -11,6 +11,7 @@ from .firebase import (
     get_database_status,
     create_user_record,
     get_user_record,
+    delete_user_account,
     get_habits_map,
     merge_habits_map,
     patch_habit_cell,

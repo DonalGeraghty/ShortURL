@@ -76,3 +76,47 @@ def get_user_record(email):
             "password_hash": row["password_hash"],
         }
     return None
+
+
+def _clear_user_memory(email_key):
+    """Remove all in-memory rows for a user (used when deleting account or syncing with Firestore delete)."""
+    db_state.auth_users_memory.pop(email_key, None)
+    db_state.habit_memory.pop(email_key, None)
+    db_state.custom_habits_memory.pop(email_key, None)
+    db_state.habit_categories_memory.pop(email_key, None)
+    db_state.todo_memory.pop(email_key, None)
+    db_state.flashcards_memory.pop(email_key, None)
+    db_state.day_planner_options_memory.pop(email_key, None)
+    db_state.day_planner_daily_memory.pop(email_key, None)
+    db_state.meal_plan_daily_memory.pop(email_key, None)
+
+
+def delete_user_account(email):
+    """
+    Delete the Firestore user document (all fields) and clear in-memory stores for that user.
+    Returns (success, error_code).
+    """
+    email_key = normalize_user_email(email)
+    if not email_key:
+        return False, "invalid_email"
+
+    if db_state.users_collection_ref:
+        try:
+            doc_ref = db_state.users_collection_ref.document(email_key)
+            if doc_ref.get().exists:
+                doc_ref.delete()
+            logger.info("User account deleted from Firestore", extra={
+                "operation": "delete_user_account",
+                "email": email_key,
+                "status": "success",
+            })
+        except Exception as e:
+            logger.error("Firestore user delete failed", extra={
+                "operation": "delete_user_account",
+                "email": email_key,
+                "error": str(e),
+            })
+            return False, "delete_failed"
+
+    _clear_user_memory(email_key)
+    return True, None
